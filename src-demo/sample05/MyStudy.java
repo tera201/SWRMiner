@@ -13,9 +13,10 @@ import org.repodriller.scm.GitRemoteRepository;
 import org.repodriller.scm.SCMRepository;
 
 import java.io.File;
-import java.util.Arrays;
 
-import static java.lang.System.*;
+import static java.lang.System.out;
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 
 /**
  * Managing State in the Visitor
@@ -54,8 +55,8 @@ public class MyStudy implements Study {
             .in(remoteGitRepo)
             .through(Commits.all())
             .filters(
-                    new OnlyModificationsWithFileTypes(Arrays.asList(".java", ".xml")),
-                    new OnlyInBranches(Arrays.asList("master")),
+                    new OnlyModificationsWithFileTypes(asList(".java", ".xml")),
+                    new OnlyInBranches(singletonList("master")),
                     new OnlyNoMerge(),
                     new OnlyInMainBranch()
             )
@@ -63,7 +64,7 @@ public class MyStudy implements Study {
             .mine();
 
 
-    visitor.devs.forEach( (developer, count) ->
+    visitor.devs.forEach((developer, count) ->
             out.format("developer: %s changes: %s %n", developer, count)
     );
   }

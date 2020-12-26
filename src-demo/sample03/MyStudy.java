@@ -15,6 +15,8 @@ import org.repodriller.scm.SCMRepository;
 import java.io.File;
 import java.util.Arrays;
 
+import static java.util.Arrays.asList;
+
 /**
  * Filtering commits.
  * Getting Modifications.
@@ -51,8 +53,8 @@ public class MyStudy implements Study {
             .in(remoteGitRepo)
             .through(Commits.all())
             .filters(
-                    new OnlyModificationsWithFileTypes(Arrays.asList(".java", ".xml")),
-                    new OnlyInBranches(Arrays.asList("master")),
+                    new OnlyModificationsWithFileTypes(asList(".java", ".xml")),
+                    new OnlyInBranches(asList("master")),
                     new OnlyNoMerge(),
                     new OnlyInMainBranch()
             )

@@ -9,6 +9,8 @@ import org.repodriller.scm.GitRepository;
 
 import java.io.File;
 
+import static java.lang.String.format;
+
 public class MyStudy implements Study {
 
   public static void main(String[] args) {
@@ -27,7 +29,7 @@ public class MyStudy implements Study {
     new RepositoryMining()
             .in(GitRepository.singleProject(gitPath))
             .through(Commits.all())
-            .process(new DevelopersVisitor(), new CSVFile(cvePath + "/devs1.csv"))
+            .process(new DevelopersVisitor(), new CSVFile(format("%s/devs1.csv", cvePath)))
             .mine();
   }
 }

@@ -46,7 +46,6 @@ public class JavaParserVisitor implements CommitVisitor {
     }
   }
 
-
   private String readFile(File f) {
     try {
       FileInputStream input = new FileInputStream(f);
@@ -57,5 +56,6 @@ public class JavaParserVisitor implements CommitVisitor {
       throw new RuntimeException("error reading file " + f.getAbsolutePath(), e);
     }
   }
+
 }
 
