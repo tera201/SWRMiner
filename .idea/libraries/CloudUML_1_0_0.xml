@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="CloudUML-1.0.0">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib/CloudUML-1.0.0.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/org.eclipse.uml2.uml.profile.standard_1.5.0.v20181203-1331.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/org.eclipse.uml2.uml.resources_5.5.0.v20181203-1331.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/lib/CloudUML-1.0.0.jar!/" />
+    </SOURCES>
+  </library>
+</component>

@@ -5,6 +5,8 @@
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src-demo" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src-model" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/src-demo/sample06" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
@@ -19,5 +21,6 @@
     <orderEntry type="library" name="svnkit-1.8.10" level="project" />
     <orderEntry type="library" name="log4j-core-2.10.0" level="project" />
     <orderEntry type="library" name="jsch-0.1.17" level="project" />
+    <orderEntry type="library" name="CloudUML-1.0.0" level="project" />
   </component>
 </module>

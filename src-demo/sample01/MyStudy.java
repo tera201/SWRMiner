@@ -22,7 +22,7 @@ public class MyStudy implements Study {
     String projectRoot = new File(".").getAbsolutePath();
 
     String gitPath = "/__git-jetbrain/repodriller";
-    String cvePath = projectRoot.replace(".", "cvs-generated");
+    String cvePath = projectRoot.replace(".", "csv-generated");
 
     new File(cvePath).mkdirs();
 
