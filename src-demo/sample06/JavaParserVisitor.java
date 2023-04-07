@@ -28,15 +28,15 @@ public class JavaParserVisitor implements CommitVisitor {
 
         File soFile = file.getFile();
 
-        NumberOfMethodsVisitor visitor = new NumberOfMethodsVisitor();
-        new JDTRunner().visit(visitor, new ByteArrayInputStream(readFile(soFile).getBytes()));
-
-        int methods = visitor.getQty();
+//        NumberOfMethodsVisitor visitor = new NumberOfMethodsVisitor();
+//        new JDTRunner().visit(visitor, new ByteArrayInputStream(readFile(soFile).getBytes()));
+//
+//        int methods = visitor.getQty();
 
         writer.write(
                 commit.getHash(),
-                file.getFullName(),
-                methods
+                file.getFullName()
+//                methods
         );
 
       }
