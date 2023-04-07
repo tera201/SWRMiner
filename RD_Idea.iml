@@ -1,26 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="JAVA_MODULE" version="4">
-  <component name="NewModuleRootManager" inherit-compiler-output="true">
-    <exclude-output />
-    <content url="file://$MODULE_DIR$">
+  <component name="AdditionalModuleElements">
+    <content url="file://$MODULE_DIR$" dumb="true">
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src-demo" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src-model" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/src-demo/sample06" />
     </content>
-    <orderEntry type="inheritedJdk" />
-    <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="KotlinJavaRuntime" level="project" />
-    <orderEntry type="library" name="log4j-core-2.14.0" level="project" />
-    <orderEntry type="library" name="log4j-1.2.17" level="project" />
-    <orderEntry type="library" name="slf4j-api-1.7.25" level="project" />
-    <orderEntry type="library" name="log4j-api-2.11.1" level="project" />
-    <orderEntry type="library" name="commons-lang3-3.3.2" level="project" />
-    <orderEntry type="library" name="commons-io-2.8.0" level="project" />
-    <orderEntry type="library" name="org.eclipse.jgit-4.8.0.201706111038-r" level="project" />
-    <orderEntry type="library" name="svnkit-1.8.10" level="project" />
-    <orderEntry type="library" name="log4j-core-2.10.0" level="project" />
-    <orderEntry type="library" name="jsch-0.1.17" level="project" />
-    <orderEntry type="library" name="CloudUML-1.0.0" level="project" />
   </component>
 </module>
