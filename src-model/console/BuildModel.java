@@ -1,5 +1,6 @@
 package console;
 
+import org.apache.commons.io.FileUtils;
 import org.eclipse.uml2.uml.Model;
 import org.eclipse.uml2.uml.UMLFactory;
 import org.repodriller.RepositoryMining;
@@ -22,6 +23,7 @@ public class BuildModel {
     String projectRoot = new File(".").getAbsolutePath();
 
     String csvPath = projectRoot.replace(".", "csv-generated");
+    String tempDir = projectRoot.replace(".", "clonnedGit");
 
     new File(csvPath).mkdirs();
 
@@ -29,7 +31,7 @@ public class BuildModel {
 
     SCMRepository remoteGitRepo = GitRemoteRepository
             .hostedOn(gitUrl)
-//          .inTempDir(tempDir)
+            .inTempDir(tempDir)
 //          .asBareRepos()
             .buildAsSCMRepository();
 
@@ -46,7 +48,11 @@ public class BuildModel {
     FileCreatorVisitor fileCreateVisitor = new FileCreatorVisitor();
     new RepositoryMining()
             .in(remoteGitRepo)
+            .setRepoTmpDir(new File(tempDir).toPath())
+            .visitorsAreThreadSafe(true)
+            .withThreads(6)
             .through(Commits.all())
+            .visitorsChangeRepoState(false)
             .process(fileCreateVisitor,
                     new CSVFile(csvPath + "/junit4-author-files-created.csv"))
             .mine();

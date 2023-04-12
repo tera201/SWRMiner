@@ -147,7 +147,7 @@ public class RepoVisitor {
 		 *     Deriving subsequent clones from firstClone should be cheap. */
 		Path clonePath = Paths.get(repo.getPath()).getFileName(); // libuv
 		Path cloneDir = Paths.get(workPath.resolve(clonePath) + "-clone0"); // libuv-clone0
-		SCMRepository firstClone = currentRepo.getScm().clone(cloneDir).info();
+		SCMRepository firstClone = visitorsChangeRepoState ? currentRepo.getScm().clone(cloneDir).info() : currentRepo;
 		putSCMRepositoryClone(new SCMRepositoryClone(firstClone, 0));
 		for (int i = 1; i < nThreads; i++) {
 			if (visitorsChangeRepoState) {

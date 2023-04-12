@@ -197,6 +197,7 @@ public class GitRemoteRepository extends GitRepository {
 				hasLocalState = false;
 			} catch (IOException e) {
 				log.error("Couldn't delete GitRemoteRepository with path " + path);
+				log.error(e);
 			}
 		}
 	}
