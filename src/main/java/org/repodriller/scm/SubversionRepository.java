@@ -204,6 +204,10 @@ public class SubversionRepository implements SCM {
 		return null;
 	}
 
+	@Override
+	public void checkoutTo(String branch) {
+	}
+
 	private Commit createCommit(SVNLogEntry logEntry) {
 		Developer committer = new Developer(logEntry.getAuthor(), null);
 		Calendar date = convertToCalendar(logEntry.getDate());

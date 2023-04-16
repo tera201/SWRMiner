@@ -73,6 +73,8 @@ public interface SCM {
 	List<Ref> getAllBranches();
 
 	List<Ref> getAllTags();
+
+	void checkoutTo(String branch);
 	
 	/* TODO A method named getCommitXYZ should return a Commit. */
 	String getCommitFromTag(String tag);

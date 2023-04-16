@@ -314,7 +314,6 @@ public class GitRepository implements SCM {
 	@Override
 	public List<Ref> getAllBranches() {
 		try (Git git = openRepository()) {
-			git.tagList().call();
 			return git.branchList().setListMode(ListBranchCommand.ListMode.ALL).call();
 		} catch (Exception e) {
 			throw new RuntimeException("error getting branches in " + path,
@@ -325,6 +324,17 @@ public class GitRepository implements SCM {
 	public List<Ref> getAllTags() {
 		try (Git git = openRepository()) {
 			return git.tagList().call();
+		} catch (Exception e) {
+			throw new RuntimeException("error getting tags in " + path,
+					e);
+		}
+	}
+
+	@Override
+	public void checkoutTo(String branch) {
+		try (Git git = openRepository()) {
+			if (git.getRepository().isBare()) throw new RuntimeException("error repo is bare");
+			git.checkout().setName(branch).call();
 		} catch (Exception e) {
 			throw new RuntimeException("error getting tags in " + path,
 					e);
