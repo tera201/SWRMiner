@@ -20,6 +20,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.ListBranchCommand;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.blame.BlameResult;
@@ -156,6 +157,7 @@ public class GitRepository implements SCM {
 
 			revWalk = new RevWalk(git.getRepository());
 			RevCommit r = revWalk.parseCommit(head);
+			git.close();
 			return new ChangeSet(r.getName(), convertToDate(r));
 
 		} catch (Exception e) {
@@ -171,7 +173,7 @@ public class GitRepository implements SCM {
 			List<ChangeSet> allCs;
 			if (!firstParentOnly) allCs = getAllCommits(git);
 			else allCs = firstParentsOnly(git);
-
+			git.close();
 			return allCs;
 		} catch (Exception e) {
 			throw new RuntimeException("error in getChangeSets for " + path, e);
@@ -289,6 +291,7 @@ public class GitRepository implements SCM {
 				}
 			}
 
+			git.close();
 			return commit;
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -307,6 +310,25 @@ public class GitRepository implements SCM {
 					  (ref) -> ref.getName().substring(ref.getName().lastIndexOf("/") + 1))
 				.collect(Collectors.toSet());
 		return mappedBranches;
+	}
+	@Override
+	public List<Ref> getAllBranches() {
+		try (Git git = openRepository()) {
+			git.tagList().call();
+			return git.branchList().setListMode(ListBranchCommand.ListMode.ALL).call();
+		} catch (Exception e) {
+			throw new RuntimeException("error getting branches in " + path,
+					e);
+		}
+	}
+	@Override
+	public List<Ref> getAllTags() {
+		try (Git git = openRepository()) {
+			return git.tagList().call();
+		} catch (Exception e) {
+			throw new RuntimeException("error getting tags in " + path,
+					e);
+		}
 	}
 
 	private Modification diffToModification(Repository repo, DiffEntry diff) throws IOException {
@@ -355,6 +377,7 @@ public class GitRepository implements SCM {
 						}
 				})
 				.collect(Collectors.toList());
+			git.close();
 			return modifications;
 		} catch (Exception e) {
 			throw new RuntimeException("error diffing " + priorCommitHash + " and " + laterCommitHash + " in " + path,
@@ -499,6 +522,7 @@ public class GitRepository implements SCM {
 			}
 
 			BlameResult blameResult = git.blame().setFilePath(file).setStartCommit(gitCommitToBeBlamed).setFollowFileRenames(true).call();
+			git.close();
 			if (blameResult != null) {
 				int rows = blameResult.getResultContents().size();
 				List<BlamedLine> result = new ArrayList<>();
@@ -531,7 +555,7 @@ public class GitRepository implements SCM {
 			Repository repo = git.getRepository();
 
 			Iterable<RevCommit> commits = git.log().add(getActualRefObjectId(repo.findRef(tag), repo)).call();
-
+			git.close();
 			for (RevCommit commit : commits) {
 				return commit.getName().toString();
 			}
