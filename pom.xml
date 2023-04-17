@@ -6,7 +6,7 @@
 
     <groupId>org.example</groupId>
     <artifactId>swrminer</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.1-SNAPSHOT</version>
 
     <distributionManagement>
         <repository>
@@ -17,27 +17,6 @@
     </distributionManagement>
 
     <dependencies>
-        <dependency>
-            <groupId>org.eclipse</groupId>
-            <artifactId>cloud-uml</artifactId>
-            <scope>system</scope>
-            <version>1.0</version>
-            <systemPath>${basedir}\lib\CloudUML-1.0.0.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse</groupId>
-            <artifactId>uml-profile</artifactId>
-            <scope>system</scope>
-            <version>1.5.0</version>
-            <systemPath>${basedir}\lib\org.eclipse.uml2.uml.profile.standard_1.5.0.v20181203-1331.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse</groupId>
-            <artifactId>uml-resources</artifactId>
-            <scope>system</scope>
-            <version>5.5.0</version>
-            <systemPath>${basedir}\lib\org.eclipse.uml2.uml.resources_5.5.0.v20181203-1331.jar</systemPath>
-        </dependency>
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
@@ -82,8 +61,8 @@
     </dependencies>
 
     <properties>
-        <maven.compiler.source>18</maven.compiler.source>
-        <maven.compiler.target>18</maven.compiler.target>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     

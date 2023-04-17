@@ -1,11 +1,9 @@
-package console;
+package model.console;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.uml2.uml.Model;
-import org.eclipse.uml2.uml.UMLFactory;
 import org.repodriller.RepositoryMining;
 import org.repodriller.filter.range.Commits;
 import org.repodriller.persistence.csv.CSVFile;
@@ -15,8 +13,6 @@ import org.repodriller.scm.SCMRepository;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -28,9 +24,6 @@ public class BuildModel {
   private static Logger log = LogManager.getLogger(GitRepository.class);
 
   public static void main(String[] args) {
-
-    Model model = UMLFactory.eINSTANCE.createModel();
-    model.setName("JUnit4");
 
     String projectRoot = new File(".").getAbsolutePath();
 
@@ -45,9 +38,9 @@ public class BuildModel {
 
     SCMRepository repo = GitRemoteRepository
             .hostedOn(gitUrl)
-            .inTempDir(System.getProperty("user.dir") + "/clonnedGit")
-//            .asBareRepos()
             .buildAsSCMRepository();
+
+    System.out.println(repo.getPath());
 
     System.out.println(buildModel.getBranches(repo));
     System.out.println(buildModel.getTags(repo));
@@ -96,17 +89,15 @@ public class BuildModel {
 
     return GitRemoteRepository
             .hostedOn(gitUrl)
-            .inTempDir(System.getProperty("user.dir") + "/clonnedGit")
-//          .asBareRepos()
             .buildAsSCMRepository();
   }
 
   public List<String> getBranches(SCMRepository repo) {
-      return repo.getScm().getAllBranches().stream().map(Ref::getName).toList();
+      return repo.getScm().getAllBranches().stream().map(Ref::getName).collect(Collectors.toList());
   }
 
   public List<String> getTags(SCMRepository repo) {
-    return repo.getScm().getAllTags().stream().map(Ref::getName).toList();
+    return repo.getScm().getAllTags().stream().map(Ref::getName).collect(Collectors.toList());
   }
 
   public void checkout(SCMRepository repo, String branch) {
