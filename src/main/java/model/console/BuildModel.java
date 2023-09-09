@@ -3,6 +3,7 @@ package model.console;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Ref;
 import org.repodriller.RepositoryMining;
 import org.repodriller.filter.range.Commits;
@@ -23,7 +24,7 @@ public class BuildModel {
 
   private static Logger log = LogManager.getLogger(GitRepository.class);
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws IOException {
 
     String projectRoot = new File(".").getAbsolutePath();
 
@@ -36,8 +37,11 @@ public class BuildModel {
 
     BuildModel buildModel = new BuildModel();
 
+    FileUtils.deleteDirectory(new File(tempDir));
+
     SCMRepository repo = GitRemoteRepository
             .hostedOn(gitUrl)
+            .inTempDir(tempDir)
             .buildAsSCMRepository();
 
     System.out.println(repo.getPath());
@@ -91,6 +95,12 @@ public class BuildModel {
             .hostedOn(gitUrl)
             .buildAsSCMRepository();
   }
+  public GitRemoteRepository createRepo(String gitUrl) throws GitAPIException {
+
+    return GitRemoteRepository
+            .hostedOn(gitUrl)
+            .build();
+  }
 
   public List<String> getBranches(SCMRepository repo) {
       return repo.getScm().getAllBranches().stream().map(Ref::getName).collect(Collectors.toList());
@@ -128,6 +138,17 @@ public class BuildModel {
   }
 
   public void cleanData() {
+    String csvPath = System.getProperty("user.dir") + "/analyseGit";
+    String gitPath = System.getProperty("user.dir") + "/clonnedGit";
+    try {
+      FileUtils.deleteDirectory(new File(csvPath));
+      FileUtils.deleteDirectory(new File(gitPath));
+    } catch (IOException e) {
+      log.info("Delete failed: " + e);
+    }
+  }
+
+  public void removeRepo() {
     String csvPath = System.getProperty("user.dir") + "/analyseGit";
     String gitPath = System.getProperty("user.dir") + "/clonnedGit";
     try {

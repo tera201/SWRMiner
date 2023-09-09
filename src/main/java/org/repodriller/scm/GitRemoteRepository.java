@@ -201,4 +201,8 @@ public class GitRemoteRepository extends GitRepository {
 			}
 		}
 	}
+
+	public String getRepositoryPath() {
+		return path.toString();
+	}
 }
