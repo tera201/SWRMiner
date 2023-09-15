@@ -16,6 +16,7 @@
 
 package org.repodriller.scm;
 
+import org.eclipse.jgit.lib.Ref;
 import org.repodriller.domain.ChangeSet;
 import org.repodriller.domain.Commit;
 import org.repodriller.domain.Modification;
@@ -68,6 +69,12 @@ public interface SCM {
 	 * @return  		The Commit with this id, or null.
 	 */
 	Commit getCommit(String id);
+
+	List<Ref> getAllBranches();
+
+	List<Ref> getAllTags();
+
+	void checkoutTo(String branch);
 	
 	/* TODO A method named getCommitXYZ should return a Commit. */
 	String getCommitFromTag(String tag);

@@ -3,6 +3,7 @@ package org.repodriller.scm;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jgit.lib.Ref;
 import org.repodriller.RepoDrillerException;
 import org.repodriller.domain.*;
 import org.repodriller.util.RDFileUtils;
@@ -191,6 +192,20 @@ public class SubversionRepository implements SCM {
 				repository.closeSession();
 		}
 		return null;
+	}
+
+	@Override
+	public List<Ref> getAllBranches() {
+		return null;
+	}
+
+	@Override
+	public List<Ref> getAllTags() {
+		return null;
+	}
+
+	@Override
+	public void checkoutTo(String branch) {
 	}
 
 	private Commit createCommit(SVNLogEntry logEntry) {

@@ -1,4 +1,4 @@
-package console;
+package model.console;
 
 import org.repodriller.domain.Commit;
 import org.repodriller.domain.Modification;
