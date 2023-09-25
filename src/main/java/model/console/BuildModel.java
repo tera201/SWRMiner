@@ -120,6 +120,13 @@ public class BuildModel {
             .buildAsSCMRepository();
   }
 
+  public SCMRepository getRepository(String gitUrl, String path) {
+    return GitRemoteRepository
+            .hostedOn(gitUrl)
+            .inTempDir(path)
+            .getAsSCMRepository();
+  }
+
   public String getRepoNameByUrl(String gitUrl) {
     return GitRemoteRepository.repoNameFromURI(gitUrl);
   }
