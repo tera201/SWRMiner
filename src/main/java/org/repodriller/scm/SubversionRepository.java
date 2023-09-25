@@ -34,6 +34,8 @@ public class SubversionRepository implements SCM {
 	private static final int DEFAULT_MAX_NUMBER_OF_FILES_IN_A_COMMIT = 50;
 
 	private static Logger log = LogManager.getLogger(SubversionRepository.class);
+
+	private String repoName;
 	private String path;
 	private String username;
 	private String password;
@@ -106,7 +108,7 @@ public class SubversionRepository implements SCM {
 			SVNDirEntry firstRevision = repository.info("/", 0);
 			SVNDirEntry lastRevision = repository.info("/", SVNRevision.HEAD.getNumber());
 
-			return new SCMRepository(this, lastRevision.getURL().getPath(), path, String.valueOf(lastRevision.getRevision()), String.valueOf(firstRevision
+			return new SCMRepository(this, lastRevision.getURL().getPath(), repoName, path, String.valueOf(lastRevision.getRevision()), String.valueOf(firstRevision
 					.getRevision()));
 
 		} catch (SVNException e) {

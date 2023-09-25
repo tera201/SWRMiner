@@ -28,4 +28,8 @@ public class SingleGitRemoteRepositoryBuilder extends GitRemoteRepositoryBuilder
 		return GitRemoteRepository.singleProject(this.gitUrl, this.tempDir, this.bare);
 	}
 
+	public SCMRepository getAsSCMRepository() {
+		return GitRemoteRepository.getSingleProject(this.gitUrl, this.tempDir);
+	}
+
 }

@@ -72,6 +72,8 @@ public class GitRepository implements SCM {
 
 	private static Logger log = LogManager.getLogger(GitRepository.class);
 
+	private String repoName = null;
+
 	/* User-specified. */
 	private String path = null;
 	private boolean firstParentOnly = false;
@@ -132,13 +134,31 @@ public class GitRepository implements SCM {
 
 			String origin = git.getRepository().getConfig().getString("remote", "origin", "url");
 
-			return new SCMRepository(this, origin, path, headId.getName(), lastCommit.getName());
+			return new SCMRepository(this, origin, repoName, path, headId.getName(), lastCommit.getName());
 		} catch (Exception e) {
 			throw new RuntimeException("Couldn't create JGit instance with path " + path);
 		}
 	}
 
-	protected Git openRepository() throws IOException, GitAPIException {
+	public SCMRepository getInfo() {
+		RevWalk rw = null;
+		try (Git git = openRepository()) {
+			ObjectId head = git.getRepository().resolve(Constants.HEAD);
+
+			rw = new RevWalk(git.getRepository());
+			RevCommit root = rw.parseCommit(head);
+			rw.sort(RevSort.REVERSE);
+			rw.markStart(root);
+			RevCommit lastCommit = rw.next();
+			String origin = git.getRepository().getConfig().getString("remote", "origin", "url");
+
+			return new SCMRepository(this, origin, repoName, path, head.getName(), lastCommit.getName());
+		} catch (Exception e) {
+			throw new RuntimeException("Couldn't create JGit instance with path " + path);
+		}
+	}
+
+	public Git openRepository() throws IOException, GitAPIException {
 		Git git = Git.open(new File(path));
 		if (this.mainBranchName == null) {
 			this.mainBranchName = discoverMainBranchName(git);
@@ -625,6 +645,10 @@ public class GitRepository implements SCM {
 	private int getSystemProperty(String name) throws NumberFormatException {
 		String val = System.getProperty(name);
 		return Integer.parseInt(val);
+	}
+
+	public void setRepoName(String repoName) {
+		this.repoName = repoName;
 	}
 
 	public void setPath(String path) {
