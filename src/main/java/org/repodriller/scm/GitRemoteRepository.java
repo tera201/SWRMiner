@@ -179,6 +179,11 @@ public class GitRemoteRepository extends GitRepository {
 		return new GitRemoteRepository(url, rootPath).getInfo();
 	}
 
+	@SuppressWarnings("resource")
+	public static SCMRepository getSingleProject(String projectPath) {
+		return new GitRepository(projectPath, true).getInfo();
+	}
+
 	public static SCMRepository[] allProjectsIn(List<String> urls) throws GitAPIException, IOException {
 		return allProjectsIn(urls, null, false);
 	}

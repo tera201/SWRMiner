@@ -5,6 +5,8 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 public class SingleGitRemoteRepositoryBuilder extends GitRemoteRepositoryBuilder {
 
 	private String gitUrl;
+
+	public SingleGitRemoteRepositoryBuilder() {}
 	
 	public SingleGitRemoteRepositoryBuilder(String gitUrl) {
 		this.gitUrl = gitUrl;
@@ -29,7 +31,9 @@ public class SingleGitRemoteRepositoryBuilder extends GitRemoteRepositoryBuilder
 	}
 
 	public SCMRepository getAsSCMRepository() {
-		return GitRemoteRepository.getSingleProject(this.gitUrl, this.tempDir);
+		if (this.gitUrl != null)
+			return GitRemoteRepository.getSingleProject(this.gitUrl, this.tempDir);
+		else return GitRemoteRepository.getSingleProject(this.tempDir);
 	}
 
 }

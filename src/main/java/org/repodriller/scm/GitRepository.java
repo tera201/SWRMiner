@@ -49,6 +49,8 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static org.repodriller.scm.GitRemoteRepository.URL_SUFFIX;
+
 /**
  * Everything you need to work with a Git-based source code repository.
  *
@@ -151,6 +153,8 @@ public class GitRepository implements SCM {
 			rw.markStart(root);
 			RevCommit lastCommit = rw.next();
 			String origin = git.getRepository().getConfig().getString("remote", "origin", "url");
+
+			String repoName = GitRemoteRepository.repoNameFromURI(origin);
 
 			return new SCMRepository(this, origin, repoName, path, head.getName(), lastCommit.getName());
 		} catch (Exception e) {
