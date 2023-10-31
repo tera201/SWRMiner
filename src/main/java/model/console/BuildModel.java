@@ -11,6 +11,7 @@ import org.repodriller.persistence.csv.CSVFile;
 import org.repodriller.scm.GitRemoteRepository;
 import org.repodriller.scm.GitRepository;
 import org.repodriller.scm.SCMRepository;
+import org.repodriller.scm.SingleGitRemoteRepositoryBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,7 +25,7 @@ public class BuildModel {
 
   private static Logger log = LogManager.getLogger(GitRepository.class);
 
-  public static void main(String[] args) throws IOException {
+  public static void main(String[] args) {
 
     String projectRoot = new File(".").getAbsolutePath();
 
@@ -33,21 +34,39 @@ public class BuildModel {
 
     new File(csvPath).mkdirs();
 
-    String gitUrl = "https://github.com/tera201/FrontendTests.git";
+    String gitUrl = "https://github.com/JetBrains/intellij-community.git";
 
     BuildModel buildModel = new BuildModel();
 
-    FileUtils.deleteDirectory(new File(tempDir));
+//    FileUtils.deleteDirectory(new File(tempDir));
 
     SCMRepository repo = GitRemoteRepository
             .hostedOn(gitUrl)
             .inTempDir(tempDir)
-            .buildAsSCMRepository();
+            .getAsSCMRepository();
+
+//    SCMRepository repo = GitRemoteRepository
+//            .hostedOn(gitUrl)
+//            .inTempDir(tempDir)
+//            .buildAsSCMRepository();
+
 
     System.out.println(repo.getPath());
+    System.out.println(repo.getRepoName());
 
-    System.out.println(buildModel.getBranches(repo));
+    List<String> branches = buildModel.getBranches(repo);
+    List<String> tags = buildModel.getTags(repo);
+    //different checkout, work only after buildModel.checkout
+//    repo.getScm().checkout(tags.get(0));
+
+
+    //work for tags
+//    buildModel.checkout(repo, branches.get(0));
+
+    System.out.println(branches);
     System.out.println(buildModel.getTags(repo));
+//    buildModel.cleanData();
+    repo.getScm().delete();
 
 //    SCMRepository remoteGitRepo = GitRemoteRepository
 //            .hostedOn(gitUrl)
@@ -95,6 +114,30 @@ public class BuildModel {
             .hostedOn(gitUrl)
             .buildAsSCMRepository();
   }
+  public SCMRepository createClone(String gitUrl, String path) {
+    return GitRemoteRepository
+            .hostedOn(gitUrl)
+            .inTempDir(path)
+            .buildAsSCMRepository();
+  }
+
+  public SCMRepository getRepository(String gitUrl, String path) {
+    return GitRemoteRepository
+            .hostedOn(gitUrl)
+            .inTempDir(path)
+            .getAsSCMRepository();
+  }
+
+  public SCMRepository getRepository(String projectPath) {
+    return new SingleGitRemoteRepositoryBuilder()
+            .inTempDir(projectPath)
+            .getAsSCMRepository();
+  }
+
+  public String getRepoNameByUrl(String gitUrl) {
+    return GitRemoteRepository.repoNameFromURI(gitUrl);
+  }
+
   public GitRemoteRepository createRepo(String gitUrl) throws GitAPIException {
 
     return GitRemoteRepository

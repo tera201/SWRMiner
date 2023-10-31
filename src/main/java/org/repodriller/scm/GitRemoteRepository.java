@@ -39,6 +39,7 @@ public class GitRemoteRepository extends GitRepository {
 
 	/* User-defined. */
 	private String uri;
+	private String repoName;
 	private Path path; /* TODO GitRepository also has a path member. Make it protected and inherit, or use getter/setter as needed? */
 	private boolean bareClone = false;
 
@@ -51,6 +52,21 @@ public class GitRemoteRepository extends GitRepository {
 	 */
 	public GitRemoteRepository(String uri) {
 		this(uri, null, false);
+	}
+	public GitRemoteRepository(String uri, String destination) {
+		super();
+		try {
+			this.uri = uri;
+			this.repoName = repoNameFromURI(uri);
+			path = Paths.get(destination + "/" + repoName);
+			hasLocalState = true;
+		} catch (RepoDrillerException e) {
+			log.error("Unsuccessful git remote repository initialization", e);
+			throw new RepoDrillerException(e);
+		}
+		this.setRepoName(repoName);
+		this.setPath(path.toString());
+		this.setFirstParentOnly(true); /* TODO. */
 	}
 
 	/**
@@ -66,17 +82,17 @@ public class GitRemoteRepository extends GitRepository {
 			/* Set members. */
 			this.uri = uri;
 			this.bareClone = bare;
+			this.repoName = repoNameFromURI(uri);
 
 			/* Choose our own path? */
 			if (destination == null) {
 				/* Pick a temp dir name. */
 				String tempDirPath;
 				tempDirPath = RDFileUtils.getTempPath(null);
-				String repoName = repoNameFromURI(uri);
 				path = Paths.get(tempDirPath.toString() + "-" + repoName); // foo-RepoOne
 			}
 			else
-				path = Paths.get(destination);
+				path = Paths.get(destination + "/" + repoName);
 
 			/* path must not exist already. */
 			if (RDFileUtils.exists(path)) {
@@ -94,6 +110,7 @@ public class GitRemoteRepository extends GitRepository {
 		log.info("url " + uri + " destination " + destination + " bare " + bare + " (path " + path + ")");
 
 		/* Fill in GitRepository details. */
+		this.setRepoName(repoName);
 		this.setPath(path.toString());
 		this.setFirstParentOnly(true); /* TODO. */
 	}
@@ -128,7 +145,7 @@ public class GitRemoteRepository extends GitRepository {
 	 * @param uri
 	 * @return
 	 */
-	private static String repoNameFromURI(String uri) {
+	public static String repoNameFromURI(String uri) {
 		/* Examples:
 		 *   git@github.com:substack/node-mkdirp.git
 		 *   https://bitbucket.org/fenics-project/notebooks.git
@@ -153,18 +170,28 @@ public class GitRemoteRepository extends GitRepository {
 	}
 
 	@SuppressWarnings("resource")
-	public static SCMRepository singleProject(String url, String rootpath, boolean bare) {
-		return new GitRemoteRepository(url, rootpath, bare).info();
+	public static SCMRepository singleProject(String url, String rootPath, boolean bare) {
+		return new GitRemoteRepository(url, rootPath, bare).info();
+	}
+
+	@SuppressWarnings("resource")
+	public static SCMRepository getSingleProject(String url, String rootPath) {
+		return new GitRemoteRepository(url, rootPath).getInfo();
+	}
+
+	@SuppressWarnings("resource")
+	public static SCMRepository getSingleProject(String projectPath) {
+		return new GitRepository(projectPath, true).getInfo();
 	}
 
 	public static SCMRepository[] allProjectsIn(List<String> urls) throws GitAPIException, IOException {
 		return allProjectsIn(urls, null, false);
 	}
 
-	protected static SCMRepository[] allProjectsIn(List<String> urls, String rootpath, boolean bare) {
+	protected static SCMRepository[] allProjectsIn(List<String> urls, String rootPath, boolean bare) {
 		List<SCMRepository> repos = new ArrayList<SCMRepository>();
 		for (String url : urls) {
-			repos.add(singleProject(url, rootpath, bare));
+			repos.add(singleProject(url, rootPath, bare));
 		}
 
 		return repos.toArray(new SCMRepository[repos.size()]);

@@ -27,18 +27,24 @@ package org.repodriller.scm;
 /* TODO Naming is confusing. */
 public class SCMRepository {
 
+	private String repoName;
 	private String path; /* Path in local FS. */
 	private String headCommit; /* Most recent commit. */
 	private String firstCommit; /* First commit. */
 	private SCM scm;
 	private String origin; /* e.g. GitHub URL */
 
-	public SCMRepository(SCM scm, String origin, String path, String headCommit, String firstCommit) {
+	public SCMRepository(SCM scm, String origin, String repoName, String path, String headCommit, String firstCommit) {
 		this.scm = scm;
 		this.origin = origin;
+		this.repoName = repoName;
 		this.path = path;
 		this.headCommit = headCommit;
 		this.firstCommit = firstCommit;
+	}
+
+	public String getRepoName() {
+		return repoName;
 	}
 
 	public String getPath() {
