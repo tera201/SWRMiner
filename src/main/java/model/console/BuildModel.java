@@ -11,6 +11,7 @@ import org.repodriller.persistence.csv.CSVFile;
 import org.repodriller.scm.GitRemoteRepository;
 import org.repodriller.scm.GitRepository;
 import org.repodriller.scm.SCMRepository;
+import org.repodriller.scm.SingleGitRemoteRepositoryBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,7 +25,7 @@ public class BuildModel {
 
   private static Logger log = LogManager.getLogger(GitRepository.class);
 
-  public static void main(String[] args) throws IOException, GitAPIException {
+  public static void main(String[] args) {
 
     String projectRoot = new File(".").getAbsolutePath();
 
@@ -33,7 +34,7 @@ public class BuildModel {
 
     new File(csvPath).mkdirs();
 
-    String gitUrl = "https://github.com/arnohaase/a-foundation.git";
+    String gitUrl = "https://github.com/JetBrains/intellij-community.git";
 
     BuildModel buildModel = new BuildModel();
 
@@ -124,6 +125,12 @@ public class BuildModel {
     return GitRemoteRepository
             .hostedOn(gitUrl)
             .inTempDir(path)
+            .getAsSCMRepository();
+  }
+
+  public SCMRepository getRepository(String projectPath) {
+    return new SingleGitRemoteRepositoryBuilder()
+            .inTempDir(projectPath)
             .getAsSCMRepository();
   }
 
