@@ -55,6 +55,10 @@ public interface SCM {
 	 */
 	List<ChangeSet> getChangeSets();
 
+	void createCommit(String message);
+
+	void resetLastCommitsWithMessage(String message);
+
 	/**
 	 * @return Metadata about this SCM.
 	 */

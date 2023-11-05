@@ -19,8 +19,7 @@ package org.repodriller.scm;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.ListBranchCommand;
+import org.eclipse.jgit.api.*;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.blame.BlameResult;
@@ -32,8 +31,10 @@ import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.repodriller.RepoDrillerException;
 import org.repodriller.domain.*;
@@ -204,6 +205,44 @@ public class GitRepository implements SCM {
 		}
 	}
 
+	@Override
+	public void createCommit(String message) {
+		try (Git git = openRepository()) {
+			Status status = git.status().call();
+			if(status.hasUncommittedChanges()) {
+			AddCommand add = git.add();
+				for (String entry : status.getModified()) {
+					add.addFilepattern(entry);
+				}
+				add.call();
+				git.commit().setMessage(message).call();
+			}
+		} catch (Exception e) {
+			throw new RuntimeException("error in create commit for " + path, e);
+		}
+	}
+
+	@Override
+	public void  resetLastCommitsWithMessage(String message) {
+		try (Git git = openRepository()) {
+			RevCommit commit = null;
+			for (RevCommit r : git.log().call()) {
+				if (!r.getFullMessage().contains(message)) {
+					commit = r;
+					break;
+				}
+			}
+			if (commit != null) {
+				git.reset().setMode(ResetType.MIXED).setRef(extractChangeSet(commit).getId()).call();
+			} else {
+				log.info("Reset doesn't required");
+			}
+
+		} catch (Exception e) {
+			throw new RuntimeException("Reset failed ", e);
+		}
+	}
+
 	private List<ChangeSet> firstParentsOnly(Git git) {
 		RevWalk revWalk = null;
 		try {
@@ -233,6 +272,7 @@ public class GitRepository implements SCM {
 
 		for (RevCommit r : git.log().call()) {
 			allCs.add(extractChangeSet(r));
+
 		}
 		return allCs;
 	}

@@ -151,6 +151,16 @@ public class SubversionRepository implements SCM {
 		}
 	}
 
+	@Override
+	public void createCommit(String message) {
+
+	}
+
+	@Override
+	public void resetLastCommitsWithMessage(String message) {
+
+	}
+
 	@SuppressWarnings("rawtypes")
 	@Override
 	/* TODO Refactor as in GitRepository.getCommit. */
