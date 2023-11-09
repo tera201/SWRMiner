@@ -405,6 +405,18 @@ public class GitRepository implements SCM {
 		}
 	}
 
+	public String getCurrentBranchOrTagName() {
+		try (Git git = openRepository()) {
+			Ref branchRef = git.getRepository().exactRef("HEAD").getTarget();
+			String tagName = "refs/tags/" + git.describe().call();
+			if (getAllTags().stream().map(Ref::getName).toList().contains(tagName))
+				return tagName;
+			return branchRef.getName();
+		}  catch (Exception e) {
+			throw new RuntimeException("Error getting branch name", e);
+		}
+	}
+
 	private Modification diffToModification(Repository repo, DiffEntry diff) throws IOException {
 		ModificationType change = Enum.valueOf(ModificationType.class, diff.getChangeType().toString());
 
