@@ -5,6 +5,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.transport.CredentialsProvider;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.repodriller.RepoDrillerException;
 import org.repodriller.util.RDFileUtils;
 
@@ -40,6 +42,9 @@ public class GitRemoteRepository extends GitRepository {
 	/* User-defined. */
 	private String uri;
 	private String repoName;
+
+	private String username;
+	private String password;
 	private Path path; /* TODO GitRepository also has a path member. Make it protected and inherit, or use getter/setter as needed? */
 	private boolean bareClone = false;
 
@@ -50,6 +55,10 @@ public class GitRemoteRepository extends GitRepository {
 	 * @throws GitAPIException
 	 * @throws IOException
 	 */
+
+	public GitRemoteRepository(String uri, String destination, boolean bare) {
+		this(uri, destination, bare, null, null);
+	}
 	public GitRemoteRepository(String uri) {
 		this(uri, null, false);
 	}
@@ -75,7 +84,7 @@ public class GitRemoteRepository extends GitRepository {
 	 *                   	If null, clones to a unique temp dir.
 	 * @param bare	Bare clone (metadata only) or full?
 	 */
-	public GitRemoteRepository(String uri, String destination, boolean bare) {
+	public GitRemoteRepository(String uri, String destination, boolean bare, String username, String password) {
 		super();
 
 		try {
@@ -83,6 +92,8 @@ public class GitRemoteRepository extends GitRepository {
 			this.uri = uri;
 			this.bareClone = bare;
 			this.repoName = repoNameFromURI(uri);
+			this.username = username;
+			this.password = password;
 
 			/* Choose our own path? */
 			if (destination == null) {
@@ -125,15 +136,18 @@ public class GitRemoteRepository extends GitRepository {
 	 */
 	private void cloneGitRepository(String uri, Path dest, boolean bare) throws GitAPIException {
 		File directory = new File(dest.toString());
+		CredentialsProvider credentialsProvider = null;
 
 		if (directory.exists())
 			throw new RepoDrillerException("Error, destination " + dest.toString() + " already exists");
-
+		if (username != null)
+			credentialsProvider = new UsernamePasswordCredentialsProvider(username, password);
 		log.info("Cloning Remote Repository " + uri + " into " + this.path);
 		Git.cloneRepository()
 				.setURI(uri)
 				.setBare(bare)
 				.setDirectory(directory)
+				.setCredentialsProvider(credentialsProvider)
 				.setCloneAllBranches(true)
 				.setNoCheckout(false)
 				.call();
@@ -166,12 +180,17 @@ public class GitRemoteRepository extends GitRepository {
 	/* Various factory methods. */
 
 	public static SCMRepository singleProject(String url) {
-		return singleProject(url, null, false);
+		return singleProject(url, null, false, null, null);
 	}
 
 	@SuppressWarnings("resource")
 	public static SCMRepository singleProject(String url, String rootPath, boolean bare) {
-		return new GitRemoteRepository(url, rootPath, bare).info();
+		return new GitRemoteRepository(url, rootPath, bare, null, null).info();
+	}
+
+	@SuppressWarnings("resource")
+	public static SCMRepository singleProject(String url, String rootPath, boolean bare, String username, String password) {
+		return new GitRemoteRepository(url, rootPath, bare, username, password).info();
 	}
 
 	@SuppressWarnings("resource")
