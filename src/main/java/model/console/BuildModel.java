@@ -120,6 +120,13 @@ public class BuildModel {
             .inTempDir(path)
             .buildAsSCMRepository();
   }
+  public SCMRepository createClone(String gitUrl, String path, String username, String password) {
+    return GitRemoteRepository
+            .hostedOn(gitUrl)
+            .inTempDir(path)
+            .creds(username, password)
+            .buildAsSCMRepository();
+  }
 
   public SCMRepository getRepository(String gitUrl, String path) {
     return GitRemoteRepository

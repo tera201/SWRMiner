@@ -55,6 +55,10 @@ public interface SCM {
 	 */
 	List<ChangeSet> getChangeSets();
 
+	void createCommit(String message);
+
+	void resetLastCommitsWithMessage(String message);
+
 	/**
 	 * @return Metadata about this SCM.
 	 */
@@ -75,6 +79,7 @@ public interface SCM {
 	List<Ref> getAllTags();
 
 	void checkoutTo(String branch);
+	String getCurrentBranchOrTagName();
 	
 	/* TODO A method named getCommitXYZ should return a Commit. */
 	String getCommitFromTag(String tag);

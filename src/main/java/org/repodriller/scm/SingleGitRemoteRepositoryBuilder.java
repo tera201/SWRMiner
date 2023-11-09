@@ -17,17 +17,23 @@ public class SingleGitRemoteRepositoryBuilder extends GitRemoteRepositoryBuilder
 		return this;
 	}
 
+	public SingleGitRemoteRepositoryBuilder creds(String username, String password) {
+		super.username = username;
+		super.password = password;
+		return this;
+	}
+
 	public SingleGitRemoteRepositoryBuilder asBareRepos() {
 		super.bare = true;
 		return this;
 	}
 
 	public GitRemoteRepository build() throws GitAPIException {
-		return new GitRemoteRepository(this.gitUrl, this.tempDir, this.bare);
+		return new GitRemoteRepository(this.gitUrl, this.tempDir, this.bare, this.username, this.password);
 	}
 
 	public SCMRepository buildAsSCMRepository() {
-		return GitRemoteRepository.singleProject(this.gitUrl, this.tempDir, this.bare);
+		return GitRemoteRepository.singleProject(this.gitUrl, this.tempDir, this.bare, this.username, this.password);
 	}
 
 	public SCMRepository getAsSCMRepository() {
