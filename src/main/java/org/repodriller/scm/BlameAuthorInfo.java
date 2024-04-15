@@ -1,11 +1,13 @@
 package org.repodriller.scm;
 
+import org.eclipse.jgit.revwalk.RevCommit;
+
 import java.util.HashSet;
 import java.util.Set;
 
 public class BlameAuthorInfo {
     private String author;
-    private Set<String> commits;
+    private Set<RevCommit> commits;
     private long lineCount;
     private long lineSize;
 
@@ -16,7 +18,7 @@ public class BlameAuthorInfo {
         this.lineSize = 0;
     }
 
-    public BlameAuthorInfo(String author, Set<String> commits, long lineCount, long lineSize) {
+    public BlameAuthorInfo(String author, Set<RevCommit> commits, long lineCount, long lineSize) {
         this.author = author;
         this.commits = commits;
         this.lineCount = lineCount;
@@ -34,7 +36,7 @@ public class BlameAuthorInfo {
     };
 
     public String getAuthor() {return author;}
-    public Set<String> getCommits() {
+    public Set<RevCommit> getCommits() {
         return commits;
     }
     public long getLineCount() {

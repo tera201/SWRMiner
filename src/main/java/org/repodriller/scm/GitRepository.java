@@ -656,7 +656,7 @@ public class GitRepository implements SCM {
 					for (int i = 0; i < rows; i++) {
 						String author = blameResult.getSourceCommitter(i).getName();
 						String fileName = blameResult.getSourcePath(i);
-						BlameAuthorInfo blameAuthorInfo = new BlameAuthorInfo(author, Collections.singleton(blameResult.getSourceCommit(i).getId().getName()), 1, blameResult.getResultContents().getString(i).getBytes().length);
+						BlameAuthorInfo blameAuthorInfo = new BlameAuthorInfo(author, Collections.singleton(blameResult.getSourceCommit(i)), 1, blameResult.getResultContents().getString(i).getBytes().length);
 						fileMap.computeIfAbsent(blameResult.getSourcePath(i), k -> new BlameFileInfo(fileName)).add(blameAuthorInfo);
 					}
 				} else {
