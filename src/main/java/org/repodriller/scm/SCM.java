@@ -94,6 +94,7 @@ public interface SCM {
 	 * 			priorCommit and laterCommit.
 	 */
 	List<Modification> getDiffBetweenCommits(String priorCommit, String laterCommit);
+	Map<String, CommitSize> repositorySize();
 
 	@Deprecated
 	String blame(String file, String currentCommit, Integer line);

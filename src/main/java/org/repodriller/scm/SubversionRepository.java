@@ -466,6 +466,11 @@ public class SubversionRepository implements SCM {
 	}
 
 	@Override
+	public Map<String, CommitSize> repositorySize() {
+		throw new RuntimeException("implement me!");
+	}
+
+	@Override
 	public List<BlamedLine> blame(String file) {
 		throw new RuntimeException("implement me!");
 	}

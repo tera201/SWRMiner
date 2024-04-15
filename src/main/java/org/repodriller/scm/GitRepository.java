@@ -31,10 +31,7 @@ import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.treewalk.AbstractTreeIterator;
-import org.eclipse.jgit.treewalk.CanonicalTreeParser;
-import org.eclipse.jgit.treewalk.EmptyTreeIterator;
-import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.treewalk.*;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.repodriller.RepoDrillerException;
 import org.repodriller.domain.*;
@@ -585,6 +582,40 @@ public class GitRepository implements SCM {
 	@Override
 	public long totalCommits() {
 		return getChangeSets().size();
+	}
+
+	@Override
+	public Map<String, CommitSize> repositorySize() {
+		try (Git git = openRepository()) {
+			Iterable<RevCommit> commits = git.log().all().call();
+			Repository repository = git.getRepository();
+			Map<String, CommitSize> commitSizeMap = new HashMap<>();
+
+			for (RevCommit commit : commits) {
+				long totalSize = 0;
+				CommitSize commitSize = new CommitSize(commit.getName(), commit.getCommitTime());
+				try (TreeWalk treeWalk = new TreeWalk(repository)) {
+					treeWalk.addTree(commit.getTree());
+					treeWalk.setRecursive(true);
+					try {
+						while (treeWalk.next()) {
+							ObjectId objectId = treeWalk.getObjectId(0);
+							totalSize += repository.getObjectDatabase().open(objectId).getSize();
+							System.out.println(treeWalk.getPathString());
+							commitSize.addFile(treeWalk.getPathString(), repository.getObjectDatabase().open(objectId).getSize());
+						}
+					} catch (IOException e) {System.out.println("Not found");}
+				}
+				commitSizeMap.put(commit.getName(), commitSize);
+
+				System.out.println("Commit: " + commitSize.getName() + ", Total repository size: " + commitSize.getProjectSize() + " bytes");
+				break;
+			}
+			return commitSizeMap;
+
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	@Override
