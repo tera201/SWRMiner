@@ -47,8 +47,6 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.repodriller.scm.GitRemoteRepository.URL_SUFFIX;
-
 /**
  * Everything you need to work with a Git-based source code repository.
  *
@@ -592,24 +590,17 @@ public class GitRepository implements SCM {
 			Map<String, CommitSize> commitSizeMap = new HashMap<>();
 
 			for (RevCommit commit : commits) {
-				long totalSize = 0;
 				CommitSize commitSize = new CommitSize(commit.getName(), commit.getCommitTime());
-				try (TreeWalk treeWalk = new TreeWalk(repository)) {
-					treeWalk.addTree(commit.getTree());
-					treeWalk.setRecursive(true);
-					try {
-						while (treeWalk.next()) {
-							ObjectId objectId = treeWalk.getObjectId(0);
-							totalSize += repository.getObjectDatabase().open(objectId).getSize();
-							System.out.println(treeWalk.getPathString());
-							commitSize.addFile(treeWalk.getPathString(), repository.getObjectDatabase().open(objectId).getSize());
-						}
-					} catch (IOException e) {System.out.println("Not found");}
-				}
+				TreeWalk treeWalk = new TreeWalk(repository);
+				treeWalk.addTree(commit.getTree());
+				treeWalk.setRecursive(true);
+				try {
+					while (treeWalk.next()) {
+						ObjectId objectId = treeWalk.getObjectId(0);
+						commitSize.addFile(treeWalk.getPathString(), repository.getObjectDatabase().open(objectId).getSize());
+					}
+				} catch (IOException ignored) {}
 				commitSizeMap.put(commit.getName(), commitSize);
-
-				System.out.println("Commit: " + commitSize.getName() + ", Total repository size: " + commitSize.getProjectSize() + " bytes");
-				break;
 			}
 			return commitSizeMap;
 
