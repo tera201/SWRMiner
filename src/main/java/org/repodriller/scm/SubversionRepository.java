@@ -466,6 +466,16 @@ public class SubversionRepository implements SCM {
 	}
 
 	@Override
+	public List<BlamedLine> blame(String file) {
+		throw new RuntimeException("implement me!");
+	}
+
+	@Override
+	public BlameManager blameManager() {
+		throw new RuntimeException("implement me!");
+	}
+
+	@Override
 	public List<BlamedLine> blame(String file, String currentCommit, boolean priorCommit) {
 		// pull request me!
 		throw new RuntimeException("implement me!");

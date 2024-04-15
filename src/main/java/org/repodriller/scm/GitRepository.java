@@ -597,6 +597,57 @@ public class GitRepository implements SCM {
 		return blame(file, commitToBeBlamed, true);
 	}
 
+	public List<BlamedLine> blame(String file) {
+		try (Git git = openRepository()) {
+			BlameResult blameResult = git.blame().setFilePath(file).setFollowFileRenames(true).call();
+			if (blameResult != null) {
+				int rows = blameResult.getResultContents().size();
+				List<BlamedLine> result = new ArrayList<>();
+				for (int i = 0; i < rows; i++) {
+					result.add(new BlamedLine(i,
+							blameResult.getResultContents().getString(i),
+							blameResult.getSourceAuthor(i).getName(),
+							blameResult.getSourceCommitter(i).getName(),
+							blameResult.getSourceCommit(i).getId().getName()));
+				}
+
+				return result;
+			} else {
+				throw new RuntimeException("BlameResult not found.");
+			}
+
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public BlameManager blameManager() {
+		try (Git git = openRepository()) {
+			Map<String, BlameFileInfo> fileMap = new HashMap<>();
+
+			for (RepositoryFile file : files()) {
+				String localFilePath = file.getFile().getPath().substring(path.length() + 1);
+				BlameResult blameResult = git.blame().setFilePath(localFilePath).setFollowFileRenames(true).call();
+
+				if (blameResult != null) {
+					int rows = blameResult.getResultContents().size();
+					for (int i = 0; i < rows; i++) {
+						String author = blameResult.getSourceCommitter(i).getName();
+						String fileName = blameResult.getSourcePath(i);
+						BlameAuthorInfo blameAuthorInfo = new BlameAuthorInfo(author, Collections.singleton(blameResult.getSourceCommit(i).getId().getName()), 1, blameResult.getResultContents().getString(i).getBytes().length);
+						fileMap.computeIfAbsent(blameResult.getSourcePath(i), k -> new BlameFileInfo(fileName)).add(blameAuthorInfo);
+					}
+				} else {
+					throw new RuntimeException("BlameResult not found.");
+				}
+			}
+			return new BlameManager(fileMap, repoName);
+
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
 	public List<BlamedLine> blame(String file, String commitToBeBlamed, boolean priorCommit) {
 		try (Git git = openRepository()) {
 			ObjectId gitCommitToBeBlamed;

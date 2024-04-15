@@ -23,6 +23,7 @@ import org.repodriller.domain.Modification;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This interface defines interactions with a source code repository that uses a Source Code Management system (i.e. version control system).
@@ -96,6 +97,8 @@ public interface SCM {
 
 	@Deprecated
 	String blame(String file, String currentCommit, Integer line);
+	List<BlamedLine> blame(String file);
+	BlameManager blameManager();
 	List<BlamedLine> blame(String file, String commitToBeBlamed, boolean priorCommit);
 
 	/* Methods for interacting with current repo state. */
