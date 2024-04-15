@@ -1,5 +1,7 @@
 package org.repodriller.scm;
 
+import org.eclipse.jgit.revwalk.RevCommit;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -7,7 +9,7 @@ import java.util.Set;
 
 public class BlamePackageInfo {
     private final String packageName;
-    private final Set<String> commits;
+    private final Set<RevCommit> commits;
     private long lineCount;
     private long lineSize;
     private final Map<String, BlameFileInfo> filesInfo;
@@ -32,7 +34,7 @@ public class BlamePackageInfo {
     }
 
     public String getPackageName() {return packageName;}
-    public Set<String> getCommits() {return commits;}
+    public Set<RevCommit> getCommits() {return commits;}
     public long getLineCount() {return lineCount;}
     public long getLineSize() {return lineSize;}
     public Map<String, BlameFileInfo> getFilesInfo() {return filesInfo;}
