@@ -31,10 +31,7 @@ import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.treewalk.AbstractTreeIterator;
-import org.eclipse.jgit.treewalk.CanonicalTreeParser;
-import org.eclipse.jgit.treewalk.EmptyTreeIterator;
-import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.treewalk.*;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.repodriller.RepoDrillerException;
 import org.repodriller.domain.*;
@@ -49,8 +46,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
-
-import static org.repodriller.scm.GitRemoteRepository.URL_SUFFIX;
 
 /**
  * Everything you need to work with a Git-based source code repository.
@@ -588,6 +583,33 @@ public class GitRepository implements SCM {
 	}
 
 	@Override
+	public Map<String, CommitSize> repositorySize() {
+		try (Git git = openRepository()) {
+			Iterable<RevCommit> commits = git.log().all().call();
+			Repository repository = git.getRepository();
+			Map<String, CommitSize> commitSizeMap = new HashMap<>();
+
+			for (RevCommit commit : commits) {
+				CommitSize commitSize = new CommitSize(commit.getName(), commit.getCommitTime());
+				TreeWalk treeWalk = new TreeWalk(repository);
+				treeWalk.addTree(commit.getTree());
+				treeWalk.setRecursive(true);
+				try {
+					while (treeWalk.next()) {
+						ObjectId objectId = treeWalk.getObjectId(0);
+						commitSize.addFile(treeWalk.getPathString(), repository.getObjectDatabase().open(objectId).getSize());
+					}
+				} catch (IOException ignored) {}
+				commitSizeMap.put(commit.getName(), commitSize);
+			}
+			return commitSizeMap;
+
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	@Override
 	@Deprecated
 	public String blame(String file, String commitToBeBlamed, Integer line) {
 		return blame(file, commitToBeBlamed).get(line).getCommit();
@@ -595,6 +617,57 @@ public class GitRepository implements SCM {
 
 	public List<BlamedLine> blame(String file, String commitToBeBlamed) {
 		return blame(file, commitToBeBlamed, true);
+	}
+
+	public List<BlamedLine> blame(String file) {
+		try (Git git = openRepository()) {
+			BlameResult blameResult = git.blame().setFilePath(file).setFollowFileRenames(true).call();
+			if (blameResult != null) {
+				int rows = blameResult.getResultContents().size();
+				List<BlamedLine> result = new ArrayList<>();
+				for (int i = 0; i < rows; i++) {
+					result.add(new BlamedLine(i,
+							blameResult.getResultContents().getString(i),
+							blameResult.getSourceAuthor(i).getName(),
+							blameResult.getSourceCommitter(i).getName(),
+							blameResult.getSourceCommit(i).getId().getName()));
+				}
+
+				return result;
+			} else {
+				throw new RuntimeException("BlameResult not found.");
+			}
+
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public BlameManager blameManager() {
+		try (Git git = openRepository()) {
+			Map<String, BlameFileInfo> fileMap = new HashMap<>();
+
+			for (RepositoryFile file : files()) {
+				String localFilePath = file.getFile().getPath().substring(path.length() + 1);
+				BlameResult blameResult = git.blame().setFilePath(localFilePath).setFollowFileRenames(true).call();
+
+				if (blameResult != null) {
+					int rows = blameResult.getResultContents().size();
+					for (int i = 0; i < rows; i++) {
+						String author = blameResult.getSourceCommitter(i).getName();
+						String fileName = blameResult.getSourcePath(i);
+						BlameAuthorInfo blameAuthorInfo = new BlameAuthorInfo(author, Collections.singleton(blameResult.getSourceCommit(i)), 1, blameResult.getResultContents().getString(i).getBytes().length);
+						fileMap.computeIfAbsent(blameResult.getSourcePath(i), k -> new BlameFileInfo(fileName)).add(blameAuthorInfo);
+					}
+				} else {
+					throw new RuntimeException("BlameResult not found.");
+				}
+			}
+			return new BlameManager(fileMap, repoName);
+
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	public List<BlamedLine> blame(String file, String commitToBeBlamed, boolean priorCommit) {
