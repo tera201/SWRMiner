@@ -36,6 +36,7 @@ import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.repodriller.RepoDrillerException;
 import org.repodriller.domain.*;
 import org.repodriller.filter.diff.DiffFilter;
+import org.repodriller.scm.exceptions.CheckoutException;
 import org.repodriller.util.PathUtils;
 import org.repodriller.util.RDFileUtils;
 
@@ -390,15 +391,25 @@ public class GitRepository implements SCM {
 	}
 
 	@Override
-	public void checkoutTo(String branch) {
+	public void checkoutTo(String branch) throws CheckoutException {
 		try (Git git = openRepository()) {
-			if (git.getRepository().isBare()) throw new RuntimeException("error repo is bare");
+			if (git.getRepository().isBare()) throw new CheckoutException("error repo is bare");
+
+			if (git.getRepository().findRef(branch) == null) {
+				throw new CheckoutException("Branch does not exist: " + branch);
+			}
+
+			Status status = git.status().call();
+			if (status.hasUncommittedChanges()) {
+				throw new CheckoutException("There are uncommitted changes in the working directory");
+			}
+
 			git.checkout().setName(branch).call();
-		} catch (Exception e) {
-			throw new RuntimeException("error checkout to " + branch,
+		} catch (IOException | GitAPIException e) {
+			throw new CheckoutException("Error checking out to " + branch,
 					e);
 		}
-	}
+    }
 
 	public String getCurrentBranchOrTagName() {
 		try (Git git = openRepository()) {

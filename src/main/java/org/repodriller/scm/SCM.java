@@ -20,6 +20,7 @@ import org.eclipse.jgit.lib.Ref;
 import org.repodriller.domain.ChangeSet;
 import org.repodriller.domain.Commit;
 import org.repodriller.domain.Modification;
+import org.repodriller.scm.exceptions.CheckoutException;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -79,7 +80,7 @@ public interface SCM {
 
 	List<Ref> getAllTags();
 
-	void checkoutTo(String branch);
+	void checkoutTo(String branch) throws CheckoutException;
 	String getCurrentBranchOrTagName();
 	
 	/* TODO A method named getCommitXYZ should return a Commit. */
