@@ -12,6 +12,7 @@ import org.repodriller.scm.GitRemoteRepository;
 import org.repodriller.scm.GitRepository;
 import org.repodriller.scm.SCMRepository;
 import org.repodriller.scm.SingleGitRemoteRepositoryBuilder;
+import org.repodriller.scm.exceptions.CheckoutException;
 
 import java.io.File;
 import java.io.IOException;
