@@ -25,7 +25,7 @@ public class BuildModel {
 
   private static Logger log = LogManager.getLogger(GitRepository.class);
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws CheckoutException {
 
     String projectRoot = new File(".").getAbsolutePath();
 
@@ -160,7 +160,7 @@ public class BuildModel {
     return repo.getScm().getAllTags().stream().map(Ref::getName).collect(Collectors.toList());
   }
 
-  public void checkout(SCMRepository repo, String branch) {
+  public void checkout(SCMRepository repo, String branch) throws CheckoutException {
     repo.getScm().checkoutTo(branch);
   }
 
