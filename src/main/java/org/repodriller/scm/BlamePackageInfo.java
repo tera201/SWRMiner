@@ -33,6 +33,20 @@ public class BlamePackageInfo {
 
     }
 
+    public RevCommit findLatestCommit() {
+        RevCommit latestCommit = null;
+        int latestTime = 0;
+
+        for (RevCommit commit : this.commits) {
+            if (commit.getCommitTime() > latestTime) {
+                latestCommit = commit;
+                latestTime = commit.getCommitTime();
+            }
+        }
+
+        return latestCommit;
+    }
+
     public String getPackageName() {return packageName;}
     public Set<RevCommit> getCommits() {return commits;}
     public long getLineCount() {return lineCount;}
