@@ -246,7 +246,7 @@ public class GitRepository implements SCM {
 			revWalk = new RevWalk(git.getRepository());
 			revWalk.setRevFilter(new FirstParentFilter());
 			revWalk.sort(RevSort.TOPO);
-			Ref headRef = git.getRepository().getRef(Constants.HEAD);  /* TODO Deprecated. */
+			Ref headRef = git.getRepository().findRef(Constants.HEAD);
 			RevCommit headCommit = revWalk.parseCommit(headRef.getObjectId());
 			revWalk.markStart(headCommit);
 			for (RevCommit revCommit : revWalk) {
@@ -395,7 +395,7 @@ public class GitRepository implements SCM {
 			if (git.getRepository().isBare()) throw new RuntimeException("error repo is bare");
 			git.checkout().setName(branch).call();
 		} catch (Exception e) {
-			throw new RuntimeException("error getting tags in " + path,
+			throw new RuntimeException("error checkout to " + branch,
 					e);
 		}
 	}
@@ -602,6 +602,7 @@ public class GitRepository implements SCM {
 				} catch (IOException ignored) {}
 				commitSizeMap.put(commit.getName(), commitSize);
 			}
+			commitSizeMap.values().stream().sorted(Comparator.comparing(CommitSize::getDate)).forEach(commitSize -> System.out.println(commitSize.getProjectSize()));
 			return commitSizeMap;
 
 		} catch (Exception e) {
