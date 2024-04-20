@@ -647,7 +647,7 @@ public class GitRepository implements SCM {
 
 				return result;
 			} else {
-				throw new RuntimeException("BlameResult not found.");
+				throw new RuntimeException("BlameResult not found. File: " + file);
 			}
 
 		} catch (Exception e) {
@@ -672,7 +672,7 @@ public class GitRepository implements SCM {
 						fileMap.computeIfAbsent(blameResult.getSourcePath(i), k -> new BlameFileInfo(fileName)).add(blameAuthorInfo);
 					}
 				} else {
-					throw new RuntimeException("BlameResult not found.");
+					throw new RuntimeException("BlameResult not found. File: " + file);
 				}
 			}
 			return new BlameManager(fileMap, repoName);
