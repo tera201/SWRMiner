@@ -647,7 +647,10 @@ public class GitRepository implements SCM {
 
 				return result;
 			} else {
-				throw new RuntimeException("BlameResult not found. File: " + file);
+				// TODO create notification
+				System.out.println("BlameResult not found. File: " + file);
+				return new ArrayList<>();
+//				throw new RuntimeException("BlameResult not found. File: " + file);
 			}
 
 		} catch (Exception e) {
@@ -672,7 +675,9 @@ public class GitRepository implements SCM {
 						fileMap.computeIfAbsent(blameResult.getSourcePath(i), k -> new BlameFileInfo(fileName)).add(blameAuthorInfo);
 					}
 				} else {
-					throw new RuntimeException("BlameResult not found. File: " + file + " localFilePath: " + localFilePath);
+					// TODO create notification
+					System.out.println("BlameResult not found. File: " + file + " localFilePath: " + localFilePath);
+//					throw new RuntimeException("BlameResult not found. File: " + file + " localFilePath: " + localFilePath);
 				}
 			}
 			return new BlameManager(fileMap, repoName);
@@ -707,7 +712,9 @@ public class GitRepository implements SCM {
 
 				return result;
 			} else {
-				throw new RuntimeException("BlameResult not found.");
+				// TODO create notification
+				System.out.println("BlameResult not found. File: " + file);
+				return new ArrayList<>();
 			}
 
 		} catch (Exception e) {
