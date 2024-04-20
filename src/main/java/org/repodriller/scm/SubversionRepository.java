@@ -292,6 +292,12 @@ public class SubversionRepository implements SCM {
 		throw new RepoDrillerException("This feature has not yet been implemented for Subversion repos.");
 	}
 
+	@Override
+	public Map<String, CommitSize> repositoryAllSize() {
+		// TODO Not yet implemented for SVN.
+		throw new RepoDrillerException("This feature has not yet been implemented for Subversion repos.");
+	}
+
 	private ModificationType getModificationType(SVNLogEntryPath e) {
 		if (e.getType() == 'A') {
 			return ModificationType.ADD;

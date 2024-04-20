@@ -594,9 +594,37 @@ public class GitRepository implements SCM {
 	}
 
 	@Override
-	public Map<String, CommitSize> repositorySize() {
+	public Map<String, CommitSize> repositoryAllSize() {
 		try (Git git = openRepository()) {
 			Iterable<RevCommit> commits = git.log().all().call();
+			Repository repository = git.getRepository();
+			Map<String, CommitSize> commitSizeMap = new HashMap<>();
+
+			for (RevCommit commit : commits) {
+				CommitSize commitSize = new CommitSize(commit.getName(), commit.getCommitTime());
+				TreeWalk treeWalk = new TreeWalk(repository);
+				treeWalk.addTree(commit.getTree());
+				treeWalk.setRecursive(true);
+				try {
+					while (treeWalk.next()) {
+						ObjectId objectId = treeWalk.getObjectId(0);
+						commitSize.addFile(treeWalk.getPathString(), repository.getObjectDatabase().open(objectId).getSize());
+					}
+				} catch (IOException ignored) {}
+				commitSizeMap.put(commit.getName(), commitSize);
+			}
+			commitSizeMap.values().stream().sorted(Comparator.comparing(CommitSize::getDate)).forEach(commitSize -> System.out.println(commitSize.getProjectSize()));
+			return commitSizeMap;
+
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	@Override
+	public Map<String, CommitSize> repositorySize() {
+		try (Git git = openRepository()) {
+			Iterable<RevCommit> commits = git.log().call();
 			Repository repository = git.getRepository();
 			Map<String, CommitSize> commitSizeMap = new HashMap<>();
 
