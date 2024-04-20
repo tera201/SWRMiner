@@ -633,7 +633,7 @@ public class GitRepository implements SCM {
 
 	public List<BlamedLine> blame(String file) {
 		try (Git git = openRepository()) {
-			BlameResult blameResult = git.blame().setFilePath(file).setFollowFileRenames(true).call();
+			BlameResult blameResult = git.blame().setFilePath(file.replace("\\", "/")).setFollowFileRenames(true).call();
 			if (blameResult != null) {
 				int rows = blameResult.getResultContents().size();
 				List<BlamedLine> result = new ArrayList<>();
@@ -660,7 +660,7 @@ public class GitRepository implements SCM {
 			Map<String, BlameFileInfo> fileMap = new HashMap<>();
 
 			for (RepositoryFile file : files()) {
-				String localFilePath = file.getFile().getPath().substring(path.length() + 1);
+				String localFilePath = file.getFile().getPath().substring(path.length() + 1).replace("\\", "/");
 				BlameResult blameResult = git.blame().setFilePath(localFilePath).setFollowFileRenames(true).call();
 
 				if (blameResult != null) {
@@ -672,7 +672,7 @@ public class GitRepository implements SCM {
 						fileMap.computeIfAbsent(blameResult.getSourcePath(i), k -> new BlameFileInfo(fileName)).add(blameAuthorInfo);
 					}
 				} else {
-					throw new RuntimeException("BlameResult not found. File: " + file);
+					throw new RuntimeException("BlameResult not found. File: " + file + " localFilePath: " + localFilePath);
 				}
 			}
 			return new BlameManager(fileMap, repoName);
@@ -692,7 +692,7 @@ public class GitRepository implements SCM {
 				gitCommitToBeBlamed = git.getRepository().resolve(commitToBeBlamed);
 			}
 
-			BlameResult blameResult = git.blame().setFilePath(file).setStartCommit(gitCommitToBeBlamed).setFollowFileRenames(true).call();
+			BlameResult blameResult = git.blame().setFilePath(file.replace("\\", "/")).setStartCommit(gitCommitToBeBlamed).setFollowFileRenames(true).call();
 			git.close();
 			if (blameResult != null) {
 				int rows = blameResult.getResultContents().size();
