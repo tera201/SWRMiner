@@ -1,8 +1,11 @@
-package org.repodriller.scm;
+package org.repodriller.scm.entities;
+
+import lombok.Getter;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Getter
 public class BlameManager {
     Map<String, BlameFileInfo> fileMap;
     Map<String, BlamePackageInfo> packageMap;
@@ -14,12 +17,6 @@ public class BlameManager {
         this.projectName = projectName;
         this.packageMap = aggregateByPackage();
     }
-
-    public Map<String, BlameFileInfo> getFileMap() {return fileMap;}
-
-    public BlamePackageInfo getRootPackageInfo() {return rootPackageInfo;}
-
-    public Map<String, BlamePackageInfo> getPackageMap() {return packageMap;}
 
     private Map<String, BlamePackageInfo> aggregateByPackage() {
         Map<String, BlamePackageInfo> packageData = new HashMap<>();

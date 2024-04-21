@@ -3,9 +3,14 @@ package org.repodriller.scm;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Ref;
 import org.repodriller.RepoDrillerException;
 import org.repodriller.domain.*;
+import org.repodriller.scm.entities.BlameManager;
+import org.repodriller.scm.entities.BlamedLine;
+import org.repodriller.scm.entities.CommitSize;
+import org.repodriller.scm.entities.DeveloperInfo;
 import org.repodriller.util.RDFileUtils;
 import org.tmatesoft.svn.core.*;
 import org.tmatesoft.svn.core.auth.BasicAuthenticationManager;
@@ -472,7 +477,12 @@ public class SubversionRepository implements SCM {
 	}
 
 	@Override
-	public Map<String, CommitSize> repositorySize() {
+	public Map<String, CommitSize> currentRepositorySize() {
+		throw new RuntimeException("implement me!");
+	}
+
+	@Override
+	public Map<String, CommitSize> repositorySize(String branchOrTag, String filePath) {
 		throw new RuntimeException("implement me!");
 	}
 
@@ -489,6 +499,16 @@ public class SubversionRepository implements SCM {
 	@Override
 	public List<BlamedLine> blame(String file, String currentCommit, boolean priorCommit) {
 		// pull request me!
+		throw new RuntimeException("implement me!");
+	}
+
+	@Override
+	public Map<String, DeveloperInfo> getDeveloperInfo() {
+		throw new RuntimeException("implement me!");
+	}
+
+	@Override
+	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
 		throw new RuntimeException("implement me!");
 	}
 

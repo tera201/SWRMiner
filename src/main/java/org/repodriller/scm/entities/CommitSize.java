@@ -1,8 +1,11 @@
-package org.repodriller.scm;
+package org.repodriller.scm.entities;
+
+import lombok.Getter;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Getter
 public class CommitSize {
     private String name;
     private long projectSize;
@@ -27,9 +30,4 @@ public class CommitSize {
         this.fileSize.put(fileName, fileSize);
         this.projectSize += fileSize;
     }
-
-    public String getName() {return name;}
-    public long getProjectSize() {return projectSize;}
-    public Map<String, Long> getFileSize() {return fileSize;}
-    public int getDate() {return date;}
 }

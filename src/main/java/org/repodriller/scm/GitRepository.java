@@ -36,6 +36,7 @@ import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.repodriller.RepoDrillerException;
 import org.repodriller.domain.*;
 import org.repodriller.filter.diff.DiffFilter;
+import org.repodriller.scm.entities.*;
 import org.repodriller.scm.exceptions.CheckoutException;
 import org.repodriller.util.PathUtils;
 import org.repodriller.util.RDFileUtils;
@@ -595,36 +596,28 @@ public class GitRepository implements SCM {
 
 	@Override
 	public Map<String, CommitSize> repositoryAllSize() {
-		try (Git git = openRepository()) {
-			Iterable<RevCommit> commits = git.log().all().call();
-			Repository repository = git.getRepository();
-			Map<String, CommitSize> commitSizeMap = new HashMap<>();
-
-			for (RevCommit commit : commits) {
-				CommitSize commitSize = new CommitSize(commit.getName(), commit.getCommitTime());
-				TreeWalk treeWalk = new TreeWalk(repository);
-				treeWalk.addTree(commit.getTree());
-				treeWalk.setRecursive(true);
-				try {
-					while (treeWalk.next()) {
-						ObjectId objectId = treeWalk.getObjectId(0);
-						commitSize.addFile(treeWalk.getPathString(), repository.getObjectDatabase().open(objectId).getSize());
-					}
-				} catch (IOException ignored) {}
-				commitSizeMap.put(commit.getName(), commitSize);
-			}
-			commitSizeMap.values().stream().sorted(Comparator.comparing(CommitSize::getDate)).forEach(commitSize -> System.out.println(commitSize.getProjectSize()));
-			return commitSizeMap;
-
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+		return repositorySize(true, null, null);
 	}
 
 	@Override
-	public Map<String, CommitSize> repositorySize() {
+	public Map<String, CommitSize> currentRepositorySize() {
+		return repositorySize(null, null);
+	}
+
+	@Override
+	public Map<String, CommitSize> repositorySize(String branchOrTag, String filePath) {
+		return repositorySize(false, branchOrTag, filePath);
+	}
+
+	private Map<String, CommitSize> repositorySize(Boolean all, String branchOrTag, String filePath) {
 		try (Git git = openRepository()) {
-			Iterable<RevCommit> commits = git.log().call();
+			Iterable<RevCommit> commits;
+			if (all) {
+				commits = git.log().all().call();
+			} else if (branchOrTag != null && filePath != null) {
+				ObjectId versionRef = git.getRepository().exactRef(branchOrTag).getObjectId();
+				commits = git.log().add(versionRef).addPath(filePath).call();
+			} else  commits = git.log().call();
 			Repository repository = git.getRepository();
 			Map<String, CommitSize> commitSizeMap = new HashMap<>();
 
@@ -641,7 +634,6 @@ public class GitRepository implements SCM {
 				} catch (IOException ignored) {}
 				commitSizeMap.put(commit.getName(), commitSize);
 			}
-			commitSizeMap.values().stream().sorted(Comparator.comparing(CommitSize::getDate)).forEach(commitSize -> System.out.println(commitSize.getProjectSize()));
 			return commitSizeMap;
 
 		} catch (Exception e) {
@@ -686,6 +678,7 @@ public class GitRepository implements SCM {
 		}
 	}
 
+	@Override
 	public BlameManager blameManager() {
 		try (Git git = openRepository()) {
 			Map<String, BlameFileInfo> fileMap = new HashMap<>();
@@ -697,9 +690,10 @@ public class GitRepository implements SCM {
 				if (blameResult != null) {
 					int rows = blameResult.getResultContents().size();
 					for (int i = 0; i < rows; i++) {
-						String author = blameResult.getSourceCommitter(i).getName();
+						String author = blameResult.getSourceAuthor(i).getName();
 						String fileName = blameResult.getSourcePath(i);
-						BlameAuthorInfo blameAuthorInfo = new BlameAuthorInfo(author, Collections.singleton(blameResult.getSourceCommit(i)), 1, blameResult.getResultContents().getString(i).getBytes().length);
+						RevCommit commit = blameResult.getSourceCommit(i);
+						BlameAuthorInfo blameAuthorInfo = new BlameAuthorInfo(author, Collections.singleton(commit), 1, blameResult.getResultContents().getString(i).getBytes().length);
 						fileMap.computeIfAbsent(blameResult.getSourcePath(i), k -> new BlameFileInfo(fileName)).add(blameAuthorInfo);
 					}
 				} else {
@@ -748,6 +742,34 @@ public class GitRepository implements SCM {
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	public Map<String, DeveloperInfo> getDeveloperInfo() throws IOException, GitAPIException {
+		return getDeveloperInfo(null);
+	}
+
+	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
+		Map<String, DeveloperInfo> developers = new HashMap<>();
+		try (Git git = openRepository()) {
+			Iterable<RevCommit> commits = (nodePath != null) ? git.log().addPath(nodePath).call() : git.log().call();
+
+			for (RevCommit commit : commits) {
+				String email = commit.getAuthorIdent().getEmailAddress();
+				DeveloperInfo dev = developers.get(email);
+				if (dev == null) {
+					dev = new DeveloperInfo(commit.getAuthorIdent().getName(), email);
+					developers.put(email, dev);
+				}
+				dev.addCommit(commit);
+				GitRepositoryUtil.analyzeCommit(commit, git, dev);
+			}
+			for (RepositoryFile file : files()) {
+				String localFilePath = file.getFile().getPath().substring(path.length() + 1).replace("\\", "/");
+				if (nodePath != null && !localFilePath.startsWith(nodePath)) continue;
+				GitRepositoryUtil.updateFileOwnerBasedOnBlame(localFilePath, git, developers);
+			}
+		}
+		return developers;
 	}
 
 	public Integer getMaxNumberFilesInACommit() {
