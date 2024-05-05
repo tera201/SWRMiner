@@ -98,6 +98,6 @@ public class DeveloperInfo {
     }
 
     public void increaseActualLinesSize(long linesSize) {
-        actualLinesSize+=linesSize;
+        actualLinesSize += linesSize;
     }
 }

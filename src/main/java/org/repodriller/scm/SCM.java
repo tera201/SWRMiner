@@ -103,6 +103,7 @@ public interface SCM {
 	List<Modification> getDiffBetweenCommits(String priorCommit, String laterCommit);
 	Map<String, CommitSize> repositoryAllSize();
 	Map<String, CommitSize> currentRepositorySize();
+	Map<String, CommitSize> repositorySize(String filePath);
 	Map<String, CommitSize> repositorySize(String branchOrTag, String filePath);
 
 	@Deprecated

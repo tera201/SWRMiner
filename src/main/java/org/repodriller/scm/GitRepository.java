@@ -414,11 +414,10 @@ public class GitRepository implements SCM {
 
 	public String getCurrentBranchOrTagName() {
 		try (Git git = openRepository()) {
-			Ref branchRef = git.getRepository().exactRef("HEAD").getTarget();
-			String tagName = "refs/tags/" + git.describe().call();
-			if (getAllTags().stream().map(Ref::getName).toList().contains(tagName))
-				return tagName;
-			return branchRef.getName();
+			ObjectId head = git.getRepository().resolve("HEAD");
+			return git.getRepository().getAllRefsByPeeledObjectId().get(head).stream()
+					.map(Ref::getName)
+					.distinct().filter(it -> it.startsWith("refs/")).findFirst().orElse(head.getName());
 		}  catch (Exception e) {
 			throw new RuntimeException("Error getting branch name", e);
 		}
@@ -605,6 +604,11 @@ public class GitRepository implements SCM {
 	}
 
 	@Override
+	public Map<String, CommitSize> repositorySize(String filePath) {
+		return repositorySize(false, null, filePath);
+	}
+
+	@Override
 	public Map<String, CommitSize> repositorySize(String branchOrTag, String filePath) {
 		return repositorySize(false, branchOrTag, filePath);
 	}
@@ -612,17 +616,21 @@ public class GitRepository implements SCM {
 	private Map<String, CommitSize> repositorySize(Boolean all, String branchOrTag, String filePath) {
 		try (Git git = openRepository()) {
 			Iterable<RevCommit> commits;
+			String localPath = filePath != null && filePath.startsWith(path) ? filePath.substring(path.length() + 1).replace("\\", "/") : filePath;
 			if (all) {
 				commits = git.log().all().call();
-			} else if (branchOrTag != null && filePath != null) {
+			} else if (branchOrTag == null && localPath != null) {
+				commits = git.log().addPath(localPath).call();
+			} else if (branchOrTag != null && localPath != null) {
 				ObjectId versionRef = git.getRepository().exactRef(branchOrTag).getObjectId();
-				commits = git.log().add(versionRef).addPath(filePath).call();
+				commits = git.log().add(versionRef).addPath(localPath).call();
 			} else  commits = git.log().call();
 			Repository repository = git.getRepository();
 			Map<String, CommitSize> commitSizeMap = new HashMap<>();
 
 			for (RevCommit commit : commits) {
 				CommitSize commitSize = new CommitSize(commit.getName(), commit.getCommitTime());
+				commitSize.setAuthor(commit.getAuthorIdent().getName(), commit.getAuthorIdent().getEmailAddress());
 				TreeWalk treeWalk = new TreeWalk(repository);
 				treeWalk.addTree(commit.getTree());
 				treeWalk.setRecursive(true);
@@ -751,7 +759,8 @@ public class GitRepository implements SCM {
 	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
 		Map<String, DeveloperInfo> developers = new HashMap<>();
 		try (Git git = openRepository()) {
-			Iterable<RevCommit> commits = (nodePath != null) ? git.log().addPath(nodePath).call() : git.log().call();
+			String localPath = nodePath != null && nodePath.startsWith(path) ? nodePath.substring(path.length() + 1).replace("\\", "/") : nodePath;
+			Iterable<RevCommit> commits = localPath != null ? git.log().addPath(localPath).call() : git.log().call();
 
 			for (RevCommit commit : commits) {
 				String email = commit.getAuthorIdent().getEmailAddress();
@@ -764,8 +773,8 @@ public class GitRepository implements SCM {
 				GitRepositoryUtil.analyzeCommit(commit, git, dev);
 			}
 			for (RepositoryFile file : files()) {
+				if (nodePath != null && !file.getFile().getPath().startsWith(nodePath)) continue;
 				String localFilePath = file.getFile().getPath().substring(path.length() + 1).replace("\\", "/");
-				if (nodePath != null && !localFilePath.startsWith(nodePath)) continue;
 				GitRepositoryUtil.updateFileOwnerBasedOnBlame(localFilePath, git, developers);
 			}
 		}

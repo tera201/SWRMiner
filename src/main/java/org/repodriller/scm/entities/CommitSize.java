@@ -9,6 +9,8 @@ import java.util.Map;
 public class CommitSize {
     private String name;
     private long projectSize;
+    private String authorName;
+    private String authorEmail;
     private Map<String, Long> fileSize;
     private int date;
 
@@ -24,6 +26,11 @@ public class CommitSize {
         this.projectSize = projectSize;
         this.fileSize = fileSize;
         this.date = date;
+    }
+
+    public void setAuthor(String authorName, String authorEmail) {
+        this.authorName = authorName;
+        this.authorEmail = authorEmail;
     }
 
     public void addFile(String fileName, long fileSize) {
