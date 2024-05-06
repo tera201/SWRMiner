@@ -616,6 +616,7 @@ public class GitRepository implements SCM {
 	private Map<String, CommitSize> repositorySize(Boolean all, String branchOrTag, String filePath) {
 		try (Git git = openRepository()) {
 			Iterable<RevCommit> commits;
+			filePath = Objects.equals(filePath, path) ? null : filePath;
 			String localPath = filePath != null && filePath.startsWith(path) ? filePath.substring(path.length() + 1).replace("\\", "/") : filePath;
 			if (all) {
 				commits = git.log().all().call();
@@ -759,6 +760,7 @@ public class GitRepository implements SCM {
 	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
 		Map<String, DeveloperInfo> developers = new HashMap<>();
 		try (Git git = openRepository()) {
+			nodePath = Objects.equals(nodePath, path) ? null : nodePath;
 			String localPath = nodePath != null && nodePath.startsWith(path) ? nodePath.substring(path.length() + 1).replace("\\", "/") : nodePath;
 			Iterable<RevCommit> commits = localPath != null ? git.log().addPath(localPath).call() : git.log().call();
 
