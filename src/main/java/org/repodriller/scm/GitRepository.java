@@ -616,7 +616,7 @@ public class GitRepository implements SCM {
 	}
 
 	private Map<String, CommitSize> repositorySize(Boolean all, String branchOrTag, String filePath) {
-		try (Git git = openRepository(); ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())) {
+		try (Git git = openRepository()) {
 			Iterable<RevCommit> commits;
 			filePath = Objects.equals(filePath, path) ? null : filePath;
 			String localPath = filePath != null && filePath.startsWith(path) ? filePath.substring(path.length() + 1).replace("\\", "/") : filePath;
@@ -631,8 +631,8 @@ public class GitRepository implements SCM {
 			} else  commits = git.log().call();
 			Repository repository = git.getRepository();
 			Map<String, CommitSize> commitSizeMap = new HashMap<>();
-			;
 			List<Future<?>> futures = new ArrayList<>();
+			ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 			for (RevCommit commit : commits) {
 				// Submitting tasks to the thread pool
 				Future<?> future = executorService.submit(() -> processCommit(commit, repository, commitSizeMap));
@@ -649,7 +649,6 @@ public class GitRepository implements SCM {
 			}
 			executorService.shutdown();
 			return commitSizeMap;
-
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
@@ -792,12 +791,13 @@ public class GitRepository implements SCM {
 	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
 		Map<String, DeveloperInfo> developers = new ConcurrentHashMap<>();
 
-		try (Git git = openRepository(); ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())) {
+		try (Git git = openRepository()) {
 			List<Future<?>> futures = new ArrayList<>();
 
 			nodePath = Objects.equals(nodePath, path) ? null : nodePath;
 			String localPath = nodePath != null && nodePath.startsWith(path) ? nodePath.substring(path.length() + 1).replace("\\", "/") : nodePath;
 			Iterable<RevCommit> commits = localPath != null ? git.log().addPath(localPath).call() : git.log().call();
+			ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
 			long startTime = System.currentTimeMillis();
 
