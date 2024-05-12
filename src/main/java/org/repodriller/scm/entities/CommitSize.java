@@ -37,4 +37,8 @@ public class CommitSize {
         this.fileSize.put(fileName, fileSize);
         this.projectSize += fileSize;
     }
+
+    public void  addFileSize(long fileSize) {
+        this.projectSize += fileSize;
+    }
 }

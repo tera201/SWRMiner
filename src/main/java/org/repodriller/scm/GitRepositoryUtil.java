@@ -11,10 +11,7 @@ import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.repodriller.scm.entities.DeveloperInfo;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 
 public class GitRepositoryUtil {
@@ -46,8 +43,8 @@ public class GitRepositoryUtil {
             for (int i = 0; i < blameResult.getResultContents().size(); i++) {
                 String authorEmail = blameResult.getSourceAuthor(i).getEmailAddress();
                 long lineSize = blameResult.getResultContents().getString(i).getBytes().length;
-                linesSizes.put(authorEmail, linesSizes.getOrDefault(authorEmail, 0L) + lineSize);
-                linesOwners.put(authorEmail, linesOwners.getOrDefault(authorEmail, 0) + 1);
+                linesSizes.merge(authorEmail, lineSize, Long::sum);
+                linesOwners.merge(authorEmail, 1, Integer::sum);
             }
             linesOwners.forEach((key, value) -> developers.get(key).increaseActualLinesOwner(value));
             linesSizes.forEach((key, value) -> developers.get(key).increaseActualLinesSize(value));
