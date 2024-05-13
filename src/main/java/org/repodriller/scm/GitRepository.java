@@ -879,7 +879,7 @@ public class GitRepository implements SCM {
 			Map<String, Integer> devs = dataBaseUtil.getDevelopersByProjectId(projectId);
 
 			dataBaseUtil.getConn().commit();
-			dataBaseUtil.getConn().setAutoCommit(true);
+//			dataBaseUtil.getConn().setAutoCommit(true);
 
 			startTime = System.currentTimeMillis();
 			for (String file : targetFiles) {
@@ -902,6 +902,7 @@ public class GitRepository implements SCM {
 			}
 			endTime = System.currentTimeMillis();
 			executionTime = endTime - startTime;
+//			dataBaseUtil.getConn().commit();
 			dataBaseUtil.getConn().setAutoCommit(true);
 			System.out.println("updateFileOwnerBasedOnBlame выполнился за " + executionTime + " мс");
 			executorService.shutdown();

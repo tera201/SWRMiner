@@ -145,6 +145,7 @@ class DataBaseUtil(url:String) {
                 pstmt.setString(4, blame.blameHash)
                 pstmt.setInt(5, blame.lineId)
                 pstmt.setLong(6, blame.lineSize)
+                pstmt.addBatch()
             }
             pstmt.executeBatch()  // Выполнение пакетной вставки
             conn.commit()
@@ -179,6 +180,52 @@ class DataBaseUtil(url:String) {
             }
         }
         return developers
+    }
+
+    fun getBlameInfoByFilePattern(projectId: Int, authorId: Int, filePathPattern: Int): Pair<Int, Long> {
+        val sql = """
+        SELECT COUNT(*) AS count, SUM(b.lineSize) AS size 
+        FROM Blames b
+        JOIN BlameFiles bf ON b.blameFileId = bf.id
+        WHERE b.projectId = ?
+          AND b.authorId = ?
+          AND bf.filePath LIKE ?
+        GROUP BY b.projectId, b.authorId, b.blameFileId
+    """
+
+        conn.prepareStatement(sql).use { pstmt ->
+            pstmt.setInt(1, projectId)
+            pstmt.setInt(2, authorId)
+            pstmt.setInt(3, filePathPattern)
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                val count = rs.getInt("count")
+                val size = rs.getLong("size")
+                return Pair(count, size)
+            }
+        }
+        return Pair(0, 0)
+    }
+
+    fun getBlameInfoForProject(projectId: Int, authorId: Int, filePathPattern: Int): Pair<Int, Long> {
+        val sql = """
+        SELECT COUNT(*) AS count, SUM(b.lineSize) AS size 
+        FROM Blames b
+        GROUP BY b.projectId, b.authorId
+    """
+
+        conn.prepareStatement(sql).use { pstmt ->
+            pstmt.setInt(1, projectId)
+            pstmt.setInt(2, authorId)
+            pstmt.setInt(3, filePathPattern)
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                val count = rs.getInt("count")
+                val size = rs.getLong("size")
+                return Pair(count, size)
+            }
+        }
+        return Pair(0, 0)
     }
 
 }
