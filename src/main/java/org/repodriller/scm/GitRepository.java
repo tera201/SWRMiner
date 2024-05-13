@@ -38,6 +38,7 @@ import org.repodriller.domain.*;
 import org.repodriller.filter.diff.DiffFilter;
 import org.repodriller.scm.entities.*;
 import org.repodriller.scm.exceptions.CheckoutException;
+import org.repodriller.util.DataBaseUtil;
 import org.repodriller.util.PathUtils;
 import org.repodriller.util.RDFileUtils;
 
@@ -46,6 +47,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -79,6 +81,8 @@ public class GitRepository implements SCM {
 	private String path = null;
 	private boolean firstParentOnly = false;
 	Map<ObjectId, Long> sizeCache = new ConcurrentHashMap<>();
+	protected DataBaseUtil dataBaseUtil;
+	protected Integer projectId;
 
 	/**
 	 * Intended for sub-classes.
@@ -96,6 +100,21 @@ public class GitRepository implements SCM {
 		log.debug("Creating a GitRepository from path " + path);
 		setPath(path);
 		setFirstParentOnly(firstParentOnly);
+		maxNumberFilesInACommit = checkMaxNumberOfFiles();
+		maxSizeOfDiff = checkMaxSizeOfDiff();
+
+		this.collectConfig = new CollectConfiguration().everything();
+	}
+
+	public GitRepository(String path, boolean firstParentOnly, DataBaseUtil dataBaseUtil) {
+		log.debug("Creating a GitRepository from path " + path);
+		this.dataBaseUtil = dataBaseUtil;
+		String[] splitPath = path.replace("\\", "/").split("/");
+		setRepoName(splitPath[splitPath.length - 1]);
+		Integer projectId = dataBaseUtil.getProjectId(repoName, path);
+		this.projectId = Objects.requireNonNullElseGet(projectId, () -> dataBaseUtil.insertProject(repoName, path));
+		setPath(path);
+		setFirstParentOnly(firstParentOnly);
 
 		maxNumberFilesInACommit = checkMaxNumberOfFiles();
 		maxSizeOfDiff = checkMaxSizeOfDiff();
@@ -107,8 +126,8 @@ public class GitRepository implements SCM {
 		return new GitRepository(path).info();
 	}
 
-	public static SCMRepository singleProject(String path, boolean singleParentOnly) {
-		return new GitRepository(path, singleParentOnly).info();
+	public static SCMRepository singleProject(String path, boolean singleParentOnly, DataBaseUtil dataBaseUtil) {
+		return new GitRepository(path, singleParentOnly, dataBaseUtil).info();
 	}
 
 	public static SCMRepository[] allProjectsIn(String path) {
@@ -119,7 +138,7 @@ public class GitRepository implements SCM {
 		List<SCMRepository> repos = new ArrayList<>();
 
 		for (String dir : RDFileUtils.getAllDirsIn(path)) {
-			repos.add(singleProject(dir, singleParentOnly));
+			repos.add(singleProject(dir, singleParentOnly, null));
 		}
 
 		return repos.toArray(new SCMRepository[repos.size()]);
@@ -788,18 +807,47 @@ public class GitRepository implements SCM {
 		return getDeveloperInfo(null);
 	}
 
+	private void dbPrepared() throws GitAPIException, IOException {
+		try (Git git = openRepository()) {
+			Iterable<RevCommit> commits = git.log().call();
+			Set<PersonIdent> authors = new HashSet<>();
+			for (RevCommit commit : commits) {
+				authors.add(commit.getAuthorIdent()); // Добавляет PersonIdent, который включает имя и email
+			}
+			dataBaseUtil.getConn().setAutoCommit(false);
+			authors.forEach(it -> dataBaseUtil.insertAuthor(projectId, it.getName(), it.getEmailAddress()));
+			dataBaseUtil.getConn().commit();
+			for (RevCommit commit : commits) {
+				int authorId = dataBaseUtil.getAuthorId(projectId, commit.getAuthorIdent().getEmailAddress());
+				dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime());
+			}
+			dataBaseUtil.getConn().commit();
+			dataBaseUtil.getConn().setAutoCommit(true);
+		} catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
 		Map<String, DeveloperInfo> developers = new ConcurrentHashMap<>();
 
 		try (Git git = openRepository()) {
-			List<Future<?>> futures = new ArrayList<>();
+
+			long startTime = System.currentTimeMillis();
+
+			dbPrepared();
+
+			long endTime = System.currentTimeMillis();
+			long executionTime = endTime - startTime;
+			System.out.println("dbPrepared выполнился за " + executionTime + " мс");
 
 			nodePath = Objects.equals(nodePath, path) ? null : nodePath;
 			String localPath = nodePath != null && nodePath.startsWith(path) ? nodePath.substring(path.length() + 1).replace("\\", "/") : nodePath;
 			Iterable<RevCommit> commits = localPath != null ? git.log().addPath(localPath).call() : git.log().call();
 			ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+			List<Future<?>> futures = new ArrayList<>();
 
-			long startTime = System.currentTimeMillis();
+			startTime = System.currentTimeMillis();
 
 			for (RevCommit commit : commits) {
 				// Submitting tasks to the thread pool
@@ -814,24 +862,37 @@ public class GitRepository implements SCM {
 					e.printStackTrace();  // Logging or other error handling
 				}
 			}
-			long endTime = System.currentTimeMillis();
-			long executionTime = endTime - startTime;
+			endTime = System.currentTimeMillis();
+			executionTime = endTime - startTime;
 			System.out.println("processDeveloperInfo выполнился за " + executionTime + " мс");
 
 			futures.clear();
-			startTime = System.currentTimeMillis();
 
-			for (RepositoryFile file : files()) {
-				if (nodePath != null && !file.getFile().getPath().startsWith(nodePath) || file.getFile().getPath().endsWith(".DS_Store")) continue;
+			String lastCommitHash = git.getRepository().resolve("HEAD").getName();
+			String finalNodePath = nodePath;
+			List<String> targetFiles = files().stream().filter(it -> (finalNodePath == null || it.getFile().getPath().startsWith(finalNodePath) && !it.getFile().getPath().endsWith(".DS_Store")))
+					.map(it -> it.getFile().getPath().substring(path.length() + 1).replace("\\", "/"))
+					.filter(it -> dataBaseUtil.getBlameFileId(projectId, it, lastCommitHash) == null).toList();
+
+			dataBaseUtil.getConn().setAutoCommit(false);
+			targetFiles.forEach(it -> dataBaseUtil.insertBlameFile(projectId, it, lastCommitHash));
+			Map<String, Integer> devs = dataBaseUtil.getDevelopersByProjectId(projectId);
+
+			dataBaseUtil.getConn().commit();
+			dataBaseUtil.getConn().setAutoCommit(true);
+
+			startTime = System.currentTimeMillis();
+			for (String file : targetFiles) {
+				Integer blameFileId = dataBaseUtil.getBlameFileId(projectId, file, lastCommitHash);
+				BlameResult blameResult = git.blame().setFilePath(file).call();
+				if (blameResult == null) continue;
 				Future<?> future = executorService.submit(() -> {
-					String localFilePath = file.getFile().getPath().substring(path.length() + 1).replace("\\", "/");
-                    try {
-                        GitRepositoryUtil.updateFileOwnerBasedOnBlame(localFilePath, git, developers);
-                    } catch (GitAPIException ignored) {}
+//					GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, developers);
+                        GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, devs, dataBaseUtil, projectId, blameFileId);
                 });
 				futures.add(future);
 			}
-
+//
 			for (Future<?> future : futures) {
 				try {
 					future.get();  // Catch exceptions if they occur during task execution
@@ -841,10 +902,14 @@ public class GitRepository implements SCM {
 			}
 			endTime = System.currentTimeMillis();
 			executionTime = endTime - startTime;
+			dataBaseUtil.getConn().setAutoCommit(true);
 			System.out.println("updateFileOwnerBasedOnBlame выполнился за " + executionTime + " мс");
 			executorService.shutdown();
-		}
-		return developers;
+			System.out.println(developers.values().stream().map(it -> (String.valueOf(it.getActualLinesOwner()))).collect(Collectors.joining(",")));
+		} catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return developers;
 	}
 
 	private void processDeveloperInfo(RevCommit commit, Git git, Map<String, DeveloperInfo> developers) {

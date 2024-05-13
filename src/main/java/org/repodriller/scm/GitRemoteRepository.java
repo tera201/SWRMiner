@@ -8,6 +8,7 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.repodriller.RepoDrillerException;
+import org.repodriller.util.DataBaseUtil;
 import org.repodriller.util.RDFileUtils;
 
 import java.io.File;
@@ -16,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A GitRepository that knows how to clone a remote repo and clean up after itself.
@@ -57,17 +59,24 @@ public class GitRemoteRepository extends GitRepository {
 	 */
 
 	public GitRemoteRepository(String uri, String destination, boolean bare) {
-		this(uri, destination, bare, null, null);
+		this(uri, destination, bare, null, null, null);
 	}
 	public GitRemoteRepository(String uri) {
 		this(uri, null, false);
 	}
 	public GitRemoteRepository(String uri, String destination) {
+		this(uri, destination, null);
+	}
+	public GitRemoteRepository(String uri, String destination, DataBaseUtil dataBaseUtil) {
 		super();
 		try {
 			this.uri = uri;
 			this.repoName = repoNameFromURI(uri);
+			this.dataBaseUtil = dataBaseUtil;
 			path = Paths.get(destination + "/" + repoName);
+			dataBaseUtil.insertProject(repoName, path.toString());
+			Integer projectId = dataBaseUtil.getProjectId(repoName, path.toString());
+			this.projectId = Objects.requireNonNullElseGet(projectId, () -> dataBaseUtil.insertProject(repoName, path.toString()));
 			hasLocalState = true;
 		} catch (RepoDrillerException e) {
 			log.error("Unsuccessful git remote repository initialization", e);
@@ -84,7 +93,7 @@ public class GitRemoteRepository extends GitRepository {
 	 *                   	If null, clones to a unique temp dir.
 	 * @param bare	Bare clone (metadata only) or full?
 	 */
-	public GitRemoteRepository(String uri, String destination, boolean bare, String username, String password) {
+	public GitRemoteRepository(String uri, String destination, boolean bare, String username, String password, DataBaseUtil dataBaseUtil) {
 		super();
 
 		try {
@@ -94,13 +103,14 @@ public class GitRemoteRepository extends GitRepository {
 			this.repoName = repoNameFromURI(uri);
 			this.username = username;
 			this.password = password;
+			this.dataBaseUtil = dataBaseUtil;
 
 			/* Choose our own path? */
 			if (destination == null) {
 				/* Pick a temp dir name. */
 				String tempDirPath;
 				tempDirPath = RDFileUtils.getTempPath(null);
-				path = Paths.get(tempDirPath.toString() + "-" + repoName); // foo-RepoOne
+				path = Paths.get(tempDirPath + "-" + repoName); // foo-RepoOne
 			}
 			else
 				path = Paths.get(destination + "/" + repoName);
@@ -112,6 +122,8 @@ public class GitRemoteRepository extends GitRepository {
 
 			/* Clone the remote repo. */
 			cloneGitRepository(uri, path, bare);
+			Integer projectId = dataBaseUtil.getProjectId(repoName, path.toString());
+            this.projectId = Objects.requireNonNullElseGet(projectId, () -> dataBaseUtil.insertProject(repoName, path.toString()));
 			hasLocalState = true;
 		} catch (IOException|GitAPIException|RepoDrillerException e) {
 			log.error("Unsuccessful git remote repository initialization", e);
@@ -180,27 +192,27 @@ public class GitRemoteRepository extends GitRepository {
 	/* Various factory methods. */
 
 	public static SCMRepository singleProject(String url) {
-		return singleProject(url, null, false, null, null);
+		return singleProject(url, null, false, null, null, null);
 	}
 
 	@SuppressWarnings("resource")
 	public static SCMRepository singleProject(String url, String rootPath, boolean bare) {
-		return new GitRemoteRepository(url, rootPath, bare, null, null).info();
+		return new GitRemoteRepository(url, rootPath, bare, null, null, null).info();
 	}
 
 	@SuppressWarnings("resource")
-	public static SCMRepository singleProject(String url, String rootPath, boolean bare, String username, String password) {
-		return new GitRemoteRepository(url, rootPath, bare, username, password).info();
+	public static SCMRepository singleProject(String url, String rootPath, boolean bare, String username, String password, DataBaseUtil dataBaseUtil) {
+		return new GitRemoteRepository(url, rootPath, bare, username, password, dataBaseUtil).info();
 	}
 
 	@SuppressWarnings("resource")
-	public static SCMRepository getSingleProject(String url, String rootPath) {
-		return new GitRemoteRepository(url, rootPath).getInfo();
+	public static SCMRepository getSingleProject(String url, String rootPath, DataBaseUtil dataBaseUtil) {
+		return new GitRemoteRepository(url, rootPath, dataBaseUtil).getInfo();
 	}
 
 	@SuppressWarnings("resource")
-	public static SCMRepository getSingleProject(String projectPath) {
-		return new GitRepository(projectPath, true).getInfo();
+	public static SCMRepository getSingleProject(String projectPath, DataBaseUtil dataBaseUtil) {
+		return new GitRepository(projectPath, true, dataBaseUtil).getInfo();
 	}
 
 	public static SCMRepository[] allProjectsIn(List<String> urls) throws GitAPIException, IOException {
