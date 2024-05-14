@@ -32,6 +32,7 @@ public class CommitStabilityAnalyzerLSH {
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
 
         for (int i = 0; i < commitList.size(); i++) {
+            fileHunkSketches.clear();
             RevCommit commit = commitList.get(i);
             Date commitDate = commit.getCommitterIdent().getWhen();
             Calendar calendar = Calendar.getInstance();
@@ -43,7 +44,6 @@ public class CommitStabilityAnalyzerLSH {
             List<RevCommit> nextMonthCommits = findCommitsInNextMonth(commitList, i, oneMonthLater);
 
             if (!nextMonthCommits.isEmpty()) {
-//                System.out.println("Founded nextmonth commits: " + nextMonthCommits.size());
                 analyzeCommitChanges(git, commit, fileHunkSketches);
 
                 // Собрать все изменения за следующий месяц в один скетч
@@ -78,24 +78,11 @@ public class CommitStabilityAnalyzerLSH {
     }
 
     private static void analyzeCommitChanges(Git git, RevCommit commit, Map<String, UpdateSketch> fileHunkSketches) throws Exception {
-        RevWalk walk = new RevWalk(git.getRepository());
-        RevCommit parent = commit.getParentCount() > 0 ? walk.parseCommit(commit.getParent(0).getId()) : null;
-
-        CanonicalTreeParser oldTreeParser = new CanonicalTreeParser();
-        if (parent != null) {
-            oldTreeParser.reset(walk.getObjectReader(), parent.getTree());
-        }
-
-        CanonicalTreeParser newTreeParser = new CanonicalTreeParser();
-        newTreeParser.reset(walk.getObjectReader(), commit.getTree());
-
-        List<DiffEntry> diffs = git.diff()
-                .setOldTree(parent != null ? oldTreeParser : null)
-                .setNewTree(newTreeParser)
-                .call();
+        RevCommit parent = commit.getParentCount() > 0 ? commit.getParent(0) : null;
 
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
             diffFormatter.setRepository(git.getRepository());
+            List<DiffEntry> diffs = diffFormatter.scan(parent, commit);
 
             for (DiffEntry diff : diffs) {
                 FileHeader fileHeader = diffFormatter.toFileHeader(diff);
