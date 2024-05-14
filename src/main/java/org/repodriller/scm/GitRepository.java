@@ -620,6 +620,7 @@ public class GitRepository implements SCM {
 			Iterable<RevCommit> commits;
 			filePath = Objects.equals(filePath, path) ? null : filePath;
 			String localPath = filePath != null && filePath.startsWith(path) ? filePath.substring(path.length() + 1).replace("\\", "/") : filePath;
+			CommitStabilityAnalyzerLSH.analyzeRepository(git);
 
 			if (all) {
 				commits = git.log().all().call();
