@@ -12,12 +12,14 @@ public class CommitSize {
     private String authorName;
     private String authorEmail;
     private Map<String, Long> fileSize;
+    private double stability;
     private int date;
 
-    public CommitSize(String name, int date) {
+    public CommitSize(String name, int date, double stability) {
         this.name = name;
         this.projectSize = 0;
         this.fileSize = new HashMap<>();
+        this.stability = stability;
         this.date = date;
     }
 
@@ -36,6 +38,10 @@ public class CommitSize {
     public void addFile(String fileName, long fileSize) {
         this.fileSize.put(fileName, fileSize);
         this.projectSize += fileSize;
+    }
+
+    public void setStability(double stability) {
+        this.stability = stability;
     }
 
     public void  addFileSize(long fileSize) {

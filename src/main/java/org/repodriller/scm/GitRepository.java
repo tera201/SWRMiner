@@ -620,7 +620,7 @@ public class GitRepository implements SCM {
 			Iterable<RevCommit> commits;
 			filePath = Objects.equals(filePath, path) ? null : filePath;
 			String localPath = filePath != null && filePath.startsWith(path) ? filePath.substring(path.length() + 1).replace("\\", "/") : filePath;
-			CommitStabilityAnalyzerLSH.analyzeRepository(git);
+			Map<String, Double> commitStability = CommitStabilityAnalyzer.analyzeRepository(git);
 
 			if (all) {
 				commits = git.log().all().call();
@@ -636,7 +636,7 @@ public class GitRepository implements SCM {
 			ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 			for (RevCommit commit : commits) {
 				// Submitting tasks to the thread pool
-				Future<?> future = executorService.submit(() -> processCommit(commit, repository, commitSizeMap));
+				Future<?> future = executorService.submit(() -> processCommit(commit, repository, commitSizeMap, commitStability.get(commit.getName())));
 				futures.add(future);
 			}
 
@@ -655,8 +655,8 @@ public class GitRepository implements SCM {
 		}
 	}
 
-	private void processCommit(RevCommit commit, Repository repository, Map<String, CommitSize> commitSizeMap) {
-		CommitSize commitSize = new CommitSize(commit.getName(), commit.getCommitTime());
+	private void processCommit(RevCommit commit, Repository repository, Map<String, CommitSize> commitSizeMap, double commitStability) {
+		CommitSize commitSize = new CommitSize(commit.getName(), commit.getCommitTime(), commitStability);
 		commitSize.setAuthor(commit.getAuthorIdent().getName(), commit.getAuthorIdent().getEmailAddress());
 
 		try (TreeWalk treeWalk = new TreeWalk(repository)) {
