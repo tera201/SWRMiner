@@ -811,24 +811,16 @@ public class GitRepository implements SCM {
 	public void dbPrepared() throws GitAPIException, IOException {
 		try (Git git = openRepository()) {
 			List<RevCommit> commits = StreamSupport.stream(git.log().call().spliterator(), false).toList();
-			Set<PersonIdent> authors = new HashSet<>();
 			for (RevCommit commit : commits) {
-				authors.add(commit.getAuthorIdent()); // Добавляет PersonIdent, который включает имя и email
-			}
-			dataBaseUtil.getConn().setAutoCommit(false);
-			authors.forEach(it -> dataBaseUtil.insertAuthor(projectId, it.getName(), it.getEmailAddress()));
-			dataBaseUtil.getConn().commit();
-			for (RevCommit commit : commits) {
-				int authorId = dataBaseUtil.getAuthorId(projectId, commit.getAuthorIdent().getEmailAddress());
+				if (dataBaseUtil.isCommitExist(commit.getName())) continue;
+				PersonIdent author = commit.getAuthorIdent();
+				Integer authorId = dataBaseUtil.getAuthorId(projectId, commit.getAuthorIdent().getEmailAddress());
+				if (authorId == null) authorId = dataBaseUtil.insertAuthor(projectId, author.getName(), author.getEmailAddress());
 				Set<String> paths = GitRepositoryUtil.getCommitsFiles(commit, git);
 				dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), GitRepositoryUtil.processCommitSize(commit, git));
 				paths.forEach(it -> dataBaseUtil.insertFile(projectId, it, commit.getName(), commit.getCommitTime()));
 			}
-			dataBaseUtil.getConn().commit();
-			dataBaseUtil.getConn().setAutoCommit(true);
-		} catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+		}
     }
 
 	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
