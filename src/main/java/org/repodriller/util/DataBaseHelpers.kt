@@ -39,6 +39,19 @@ fun createTables(url: String) {
         );
     """.trimIndent()
 
+    val sqlCreateFiles = """
+        CREATE TABLE IF NOT EXISTS Files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            projectId INTEGER NOT NULL,
+            filePath TEXT NOT NULL,
+            hash TEXT,
+            date INTEGER NOT NULL,
+            FOREIGN KEY (projectId) REFERENCES Projects(id),
+            FOREIGN KEY (hash) REFERENCES Commits(hash),
+            UNIQUE (hash, projectId, filePath)
+        );
+    """.trimIndent()
+
     val sqlCreateChanges = """
         CREATE TABLE IF NOT EXISTS Changes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,6 +78,7 @@ fun createTables(url: String) {
             projectId TEXT NOT NULL,
             filePath TEXT NOT NULL,
             fileHash TEXT NOT NULL,
+            lineSize LONG,
             FOREIGN KEY (projectId) REFERENCES Projects(id),
             FOREIGN KEY (fileHash) REFERENCES Commits(hash),
             UNIQUE (projectId, filePath, fileHash) 
@@ -74,16 +88,17 @@ fun createTables(url: String) {
     val sqlCreateBlame = """
         CREATE TABLE IF NOT EXISTS Blames (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            projectId TEXT NOT NULL,
-            authorId TEXT NOT NULL,
-            blameFileId TEXT NOT NULL,
-            blameHash TEXT NOT NULL,
-            lineId INTEGER NOT NULL,
+            projectId INT NOT NULL,
+            authorId INT NOT NULL,
+            blameFileId INT NOT NULL,
+            blameHashes TEXT NOT NULL,
+            lineIds TEXT NOT NULL,
+            lineCounts LONG NOT NULL,
             lineSize LONG NOT NULL,
             FOREIGN KEY (projectId) REFERENCES Projects(id),
-            FOREIGN KEY (blameHash) REFERENCES Commits(hash),
+            FOREIGN KEY (blameHashes) REFERENCES Commits(hash),
             FOREIGN KEY (authorId) REFERENCES Authors(id),
-            UNIQUE (projectId, authorId, BlameFileId, lineId) 
+            UNIQUE (projectId, authorId, BlameFileId) 
         );
     """.trimIndent()
 
@@ -93,6 +108,7 @@ fun createTables(url: String) {
                 stmt.execute(sqlCreateProjects)
                 stmt.execute(sqlCreateAuthors)
                 stmt.execute(sqlCreateCommits)
+                stmt.execute(sqlCreateFiles)
                 stmt.execute(sqlCreateChanges)
                 stmt.execute(sqlCreateBlameFiles)
                 stmt.execute(sqlCreateBlame)

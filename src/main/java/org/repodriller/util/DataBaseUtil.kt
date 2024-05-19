@@ -1,5 +1,8 @@
 package org.repodriller.util
 
+import com.fasterxml.jackson.core.JsonProcessingException
+import com.fasterxml.jackson.databind.ObjectMapper
+import org.repodriller.scm.entities.DeveloperInfo
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
@@ -93,13 +96,14 @@ class DataBaseUtil(url:String) {
         }
     }
 
-    fun insertCommit(projectId:Int, authorId: Int, hash: String, date: Int):String {
-        val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date) VALUES(?, ?, ?, ?)"
+    fun insertCommit(projectId:Int, authorId: Int, hash: String, date: Int, projectSize: Long):String {
+        val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date, projectSize) VALUES(?, ?, ?, ?, ?)"
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setInt(2, authorId)
             pstmt.setString(3, hash)
             pstmt.setInt(4, date)
+            pstmt.setLong(5, projectSize)
             if (pstmt.executeUpdate() > 0) return getLastInsertStringId()
         }
         return ""
@@ -124,6 +128,30 @@ class DataBaseUtil(url:String) {
         return -1
     }
 
+    fun insertFile(projectId: Int, filePath: String, hash: String, date: Int):Int {
+        val sql = "INSERT OR IGNORE INTO Files(projectId, filePath, hash, date) VALUES(?, ?, ?, ?)"
+        conn.prepareStatement(sql).use { pstmt ->
+            pstmt.setInt(1, projectId)
+            pstmt.setString(2, filePath)
+            pstmt.setString(3, hash)
+            pstmt.setInt(4, date)
+            if (pstmt.executeUpdate() > 0) return getLastInsertId()
+        }
+        return -1
+    }
+
+    fun updateBlameFileSize(blameFileId: Int) {
+        val sqlUpdate = """
+        UPDATE BlameFiles SET lineSize = (SELECT SUM(lineSize) FROM Blames WHERE blameFileId = ? GROUP BY projectId AND blameFileId) WHERE id = ?
+    """.trimIndent()
+
+        conn.prepareStatement(sqlUpdate).use { pstmt ->
+            pstmt.setInt(1, blameFileId)
+            pstmt.setInt(2, blameFileId)
+            pstmt.executeUpdate()
+        }
+    }
+
     fun getBlameFileId(projectId: Int, filePath: String, fileHash: String):Int? {
         val sql = "SELECT * FROM BlameFiles WHERE projectId = ? AND filePath = ? AND fileHash = ?"
         conn.prepareStatement(sql).use { pstmt ->
@@ -134,21 +162,34 @@ class DataBaseUtil(url:String) {
         }
     }
 
-    fun insertBlame(blameEntities: List<BlameEntity>) {
-        val sql = "INSERT OR IGNORE INTO Blames(projectId, authorId, blameFileId, blameHash, lineId, lineSize) VALUES(?, ?, ?, ?, ?, ?)"
+    fun getLastFileHash(projectId: Int, filePath: String):String? {
+        val sql = "SELECT hash FROM Files WHERE projectId = ? AND filePath = ? ORDER BY date DESC LIMIT 1"
         conn.prepareStatement(sql).use { pstmt ->
-            conn.setAutoCommit(false)
+            pstmt.setInt(1, projectId)
+            pstmt.setString(2, filePath)
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                val hash = rs.getString("hash")
+                return hash
+            }
+        }
+        return null
+    }
+
+    fun insertBlame(blameEntities: List<BlameEntity>) {
+        val sql = "INSERT OR IGNORE INTO Blames(projectId, authorId, blameFileId, blameHashes, lineIds, lineCounts, lineSize) VALUES(?, ?, ?, ?, ?, ?, ?)"
+        conn.prepareStatement(sql).use { pstmt ->
             for (blame in blameEntities) {
                 pstmt.setInt(1, blame.projectId)
                 pstmt.setInt(2, blame.authorId)
                 pstmt.setInt(3, blame.blameFileId)
-                pstmt.setString(4, blame.blameHash)
-                pstmt.setInt(5, blame.lineId)
-                pstmt.setLong(6, blame.lineSize)
+                pstmt.setString(4, convertListToJson(blame.blameHashes))
+                pstmt.setString(5, convertListToJson(blame.lineIds))
+                pstmt.setLong(6, blame.lineIds.size.toLong())
+                pstmt.setLong(7, blame.lineSize)
                 pstmt.addBatch()
             }
             pstmt.executeBatch()  // Выполнение пакетной вставки
-            conn.commit()
         }
     }
 
@@ -182,50 +223,65 @@ class DataBaseUtil(url:String) {
         return developers
     }
 
-    fun getBlameInfoByFilePattern(projectId: Int, authorId: Int, filePathPattern: Int): Pair<Int, Long> {
+    fun developerUpdateByBlameInfo(projectId: Int, developers: Map<String, DeveloperInfo>): Pair<Int, Long> {
         val sql = """
-        SELECT COUNT(*) AS count, SUM(b.lineSize) AS size 
+        SELECT COUNT(b.lineCounts) AS lineCount, SUM(b.lineSize) AS lineSize, authors.email, string_agg(bf.filePath, ', ') as filePaths
         FROM Blames b
         JOIN BlameFiles bf ON b.blameFileId = bf.id
+        JOIN Authors authors on authors.id = b.authorId
         WHERE b.projectId = ?
-          AND b.authorId = ?
-          AND bf.filePath LIKE ?
-        GROUP BY b.projectId, b.authorId, b.blameFileId
-    """
-
-        conn.prepareStatement(sql).use { pstmt ->
-            pstmt.setInt(1, projectId)
-            pstmt.setInt(2, authorId)
-            pstmt.setInt(3, filePathPattern)
-            val rs = pstmt.executeQuery()
-            while (rs.next()) {
-                val count = rs.getInt("count")
-                val size = rs.getLong("size")
-                return Pair(count, size)
-            }
-        }
-        return Pair(0, 0)
-    }
-
-    fun getBlameInfoForProject(projectId: Int, authorId: Int, filePathPattern: Int): Pair<Int, Long> {
-        val sql = """
-        SELECT COUNT(*) AS count, SUM(b.lineSize) AS size 
-        FROM Blames b
         GROUP BY b.projectId, b.authorId
     """
 
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
-            pstmt.setInt(2, authorId)
-            pstmt.setInt(3, filePathPattern)
             val rs = pstmt.executeQuery()
             while (rs.next()) {
-                val count = rs.getInt("count")
-                val size = rs.getLong("size")
-                return Pair(count, size)
+                val email = rs.getString("email")
+                val count = rs.getLong("lineCount")
+                val size = rs.getLong("lineSize")
+                val filePaths = rs.getString("filePaths").split(", ")
+                developers.get(email)?.actualLinesSize = size
+                developers.get(email)?.actualLinesOwner = count
+                developers.get(email)?.ownerForFiles?.addAll(filePaths)
             }
         }
         return Pair(0, 0)
+    }
+
+//    fun getBlameInfoByFilePattern(projectId: Int, filePathPattern: Int): Pair<Int, Long> {
+//        val sql = """
+//        SELECT A.email AS email, A.name AS name, Sum(b.lineSize) AS lineSize, Sum(b.lineCounts) AS lineCounts, Sum(b.lineSize) / SUM(bf.lineSize) AS Owner/percent
+//        FROM Blames b
+//        JOIN BlameFiles bf ON b.blameFileId = bf.id
+//        JOIN Authors A on A.id = b.authorId
+//        WHERE b.projectId = ?
+//          AND bf.filePath LIKE ?
+//        GROUP BY b.projectId, b.authorId
+//    """
+//
+//        conn.prepareStatement(sql).use { pstmt ->
+//            pstmt.setInt(1, projectId)
+//            pstmt.setInt(2, filePathPattern)
+//            val rs = pstmt.executeQuery()
+//            while (rs.next()) {
+//                val count = rs.getInt("count")
+//                val size = rs.getLong("size")
+//                return Pair(count, size)
+//            }
+//        }
+//        return Pair(0, 0)
+//    }
+
+    fun convertListToJson(list: List<Any>): String {
+        val mapper = ObjectMapper()
+        var jsonString: String = "{}"
+        try {
+            jsonString = mapper.writeValueAsString(list)
+        } catch (e: JsonProcessingException) {
+            e.printStackTrace()
+        }
+        return jsonString
     }
 
 }

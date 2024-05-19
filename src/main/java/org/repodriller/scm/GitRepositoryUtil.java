@@ -6,39 +6,64 @@ import org.eclipse.jgit.blame.BlameResult;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.RawTextComparator;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
+import org.repodriller.scm.entities.CommitSize;
 import org.repodriller.scm.entities.DeveloperInfo;
 import org.repodriller.util.BlameEntity;
 import org.repodriller.util.DataBaseUtil;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 
 public class GitRepositoryUtil {
 
     public static void analyzeCommit(RevCommit commit, Git git, DeveloperInfo dev) throws IOException {
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
+            RevCommit parent = (commit.getParentCount() > 0) ? commit.getParent(0) : null;
             diffFormatter.setRepository(git.getRepository());
             diffFormatter.setDiffComparator(RawTextComparator.DEFAULT);
             diffFormatter.setDetectRenames(true);
-            if (commit.getParentCount() > 0) {
-                List<DiffEntry> diffs = diffFormatter.scan(commit.getParent(0), commit);
-                for (DiffEntry diff : diffs) {
-                    dev.processDiff(diff, git.getRepository());
-                }
-            } else {
-                List<DiffEntry> diffs = diffFormatter.scan(null, commit);
-                for (DiffEntry diff : diffs) {
-                    dev.processDiff(diff, git.getRepository());
-                }
+            List<DiffEntry> diffs = diffFormatter.scan(parent, commit);
+            for (DiffEntry diff : diffs) {
+                dev.processDiff(diff, git.getRepository());
             }
         }
+    }
+
+    public static Set<String> getCommitsFiles(RevCommit commit, Git git) throws IOException {
+        try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
+            RevCommit parent = (commit.getParentCount() > 0) ? commit.getParent(0) : null;
+            diffFormatter.setRepository(git.getRepository());
+            diffFormatter.setDiffComparator(RawTextComparator.DEFAULT);
+            diffFormatter.setDetectRenames(true);
+            List<DiffEntry> diffs = diffFormatter.scan(parent, commit);
+            Set<String> paths = new HashSet<>();
+            for (DiffEntry diff : diffs) {
+                paths.add(diff.getNewPath());
+            }
+            return paths;
+        }
+    }
+
+    public static long processCommitSize(RevCommit commit, Git git) {
+        try (TreeWalk treeWalk = new TreeWalk(git.getRepository())) {
+            long projectSize = 0;
+            treeWalk.addTree(commit.getTree());
+            treeWalk.setRecursive(true);
+            while (treeWalk.next()) {
+                ObjectId objectId = treeWalk.getObjectId(0);
+                long size = git.getRepository().getObjectDatabase().open(objectId).getSize();
+               projectSize += size;
+            }
+            return projectSize;
+        } catch (Exception e) {}
+        return 0;
     }
 
     public static void updateFileOwnerBasedOnBlame(BlameResult blameResult, Map<String, DeveloperInfo> developers) {
@@ -59,15 +84,19 @@ public class GitRepositoryUtil {
     }
 
     public static void updateFileOwnerBasedOnBlame(BlameResult blameResult, Map<String, Integer> devs, DataBaseUtil dataBaseUtil, Integer projectId, Integer blameFileId) {
-        List<BlameEntity> blameEntities = new ArrayList<>();
+        Map<String, BlameEntity> blameEntityMap = new HashMap<>();
         if (blameResult != null) {
             for (int i = 0; i < blameResult.getResultContents().size(); i++) {
                 PersonIdent author = blameResult.getSourceAuthor(i);
                 String commitHash = blameResult.getSourceCommit(i).getName();
                 long lineSize = blameResult.getResultContents().getString(i).getBytes().length;
-                blameEntities.add(new BlameEntity(projectId, devs.get(author.getEmailAddress()), blameFileId, commitHash, i, lineSize));
+                BlameEntity blameEntity = blameEntityMap.getOrDefault(blameResult.getSourceAuthor(i).getEmailAddress(), new BlameEntity(projectId, devs.get(author.getEmailAddress()), blameFileId, new ArrayList<>(), new ArrayList<>(), 0));
+                blameEntityMap.putIfAbsent(blameResult.getSourceAuthor(i).getEmailAddress(), blameEntity);
+                blameEntity.getBlameHashes().add(commitHash);
+                blameEntity.getLineIds().add(i);
+                blameEntity.setLineSize(blameEntity.getLineSize() + lineSize);
             }
         } else System.out.println("Blame for file " + blameResult.getResultPath() + " not found");
-        dataBaseUtil.insertBlame(blameEntities);
+        dataBaseUtil.insertBlame(blameEntityMap.values().stream().toList());
     }
 }

@@ -51,6 +51,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Everything you need to work with a Git-based source code repository.
@@ -807,9 +808,9 @@ public class GitRepository implements SCM {
 		return getDeveloperInfo(null);
 	}
 
-	private void dbPrepared() throws GitAPIException, IOException {
+	public void dbPrepared() throws GitAPIException, IOException {
 		try (Git git = openRepository()) {
-			Iterable<RevCommit> commits = git.log().call();
+			List<RevCommit> commits = StreamSupport.stream(git.log().call().spliterator(), false).toList();
 			Set<PersonIdent> authors = new HashSet<>();
 			for (RevCommit commit : commits) {
 				authors.add(commit.getAuthorIdent()); // Добавляет PersonIdent, который включает имя и email
@@ -819,7 +820,9 @@ public class GitRepository implements SCM {
 			dataBaseUtil.getConn().commit();
 			for (RevCommit commit : commits) {
 				int authorId = dataBaseUtil.getAuthorId(projectId, commit.getAuthorIdent().getEmailAddress());
-				dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime());
+				Set<String> paths = GitRepositoryUtil.getCommitsFiles(commit, git);
+				dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), GitRepositoryUtil.processCommitSize(commit, git));
+				paths.forEach(it -> dataBaseUtil.insertFile(projectId, it, commit.getName(), commit.getCommitTime()));
 			}
 			dataBaseUtil.getConn().commit();
 			dataBaseUtil.getConn().setAutoCommit(true);
@@ -868,31 +871,25 @@ public class GitRepository implements SCM {
 
 			futures.clear();
 
-			String lastCommitHash = git.getRepository().resolve("HEAD").getName();
 			String finalNodePath = nodePath;
 			List<String> targetFiles = files().stream().filter(it -> (finalNodePath == null || it.getFile().getPath().startsWith(finalNodePath) && !it.getFile().getPath().endsWith(".DS_Store")))
 					.map(it -> it.getFile().getPath().substring(path.length() + 1).replace("\\", "/"))
-					.filter(it -> dataBaseUtil.getBlameFileId(projectId, it, lastCommitHash) == null).toList();
+					.filter(it -> dataBaseUtil.getBlameFileId(projectId, it, dataBaseUtil.getLastFileHash(projectId, it)) == null).toList();
 
-			dataBaseUtil.getConn().setAutoCommit(false);
-			targetFiles.forEach(it -> dataBaseUtil.insertBlameFile(projectId, it, lastCommitHash));
+			targetFiles.forEach(it -> dataBaseUtil.insertBlameFile(projectId, it, dataBaseUtil.getLastFileHash(projectId, it)));
 			Map<String, Integer> devs = dataBaseUtil.getDevelopersByProjectId(projectId);
-
-			dataBaseUtil.getConn().commit();
-//			dataBaseUtil.getConn().setAutoCommit(true);
 
 			startTime = System.currentTimeMillis();
 			for (String file : targetFiles) {
-				Integer blameFileId = dataBaseUtil.getBlameFileId(projectId, file, lastCommitHash);
+				Integer blameFileId = dataBaseUtil.getBlameFileId(projectId, file, dataBaseUtil.getLastFileHash(projectId, file));
 				BlameResult blameResult = git.blame().setFilePath(file).call();
 				if (blameResult == null) continue;
 				Future<?> future = executorService.submit(() -> {
-//					GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, developers);
                         GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, devs, dataBaseUtil, projectId, blameFileId);
+						dataBaseUtil.updateBlameFileSize(blameFileId);
                 });
 				futures.add(future);
 			}
-//
 			for (Future<?> future : futures) {
 				try {
 					future.get();  // Catch exceptions if they occur during task execution
@@ -902,8 +899,8 @@ public class GitRepository implements SCM {
 			}
 			endTime = System.currentTimeMillis();
 			executionTime = endTime - startTime;
-//			dataBaseUtil.getConn().commit();
 			dataBaseUtil.getConn().setAutoCommit(true);
+			dataBaseUtil.developerUpdateByBlameInfo(projectId, developers);
 			System.out.println("updateFileOwnerBasedOnBlame выполнился за " + executionTime + " мс");
 			executorService.shutdown();
 			System.out.println(developers.values().stream().map(it -> (String.valueOf(it.getActualLinesOwner()))).collect(Collectors.joining(",")));

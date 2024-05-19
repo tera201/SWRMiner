@@ -1,6 +1,7 @@
 package org.repodriller.scm.entities;
 
 import lombok.Getter;
+import lombok.Setter;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.EditList;
@@ -19,8 +20,8 @@ public class DeveloperInfo {
     private List<RevCommit> commits;
     private long changes;
     private long changesSize;
-    private long actualLinesOwner;
-    private long actualLinesSize;
+    public long actualLinesOwner;
+    public long actualLinesSize;
     private long linesAdded;
     private long linesDeleted;
     private long linesModified;
@@ -28,7 +29,7 @@ public class DeveloperInfo {
     private long fileDeleted;
     private long fileModified;
     private List<String> authorForFiles;
-    private List<String> ownerForFiles;
+    public List<String> ownerForFiles;
 
     public DeveloperInfo(String name, String emailAddress) {
         this.name = name;
