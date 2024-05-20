@@ -23,6 +23,16 @@ public class CommitSize {
         this.date = date;
     }
 
+    public CommitSize(String name, String authorName, String authorEmail, long projectSize, int date, double stability) {
+        this.name = name;
+        this.authorName = authorName;
+        this.authorEmail = authorEmail;
+        this.projectSize = projectSize;
+        this.fileSize = new HashMap<>();
+        this.date = date;
+        this.stability = stability;
+    }
+
     public CommitSize(String name, long projectSize, Map<String, Long> fileSize, int date) {
         this.name = name;
         this.projectSize = projectSize;

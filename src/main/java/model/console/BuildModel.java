@@ -47,6 +47,12 @@ public class BuildModel {
 //            .inTempDir(tempDir)
 //            .getAsSCMRepository();
       SCMRepository repo = buildModel.getRepository(gitUrl, tempDir + "/a-foundation", tempDir + "/db");
+
+      long startTime = System.currentTimeMillis();
+      repo.getScm().dbPrepared();
+      long endTime = System.currentTimeMillis();
+      long executionTime = endTime - startTime;
+      System.out.println("dbPrepared выполнился за " + executionTime + " мс");
 //      SCMRepository repo = buildModel.createClone(gitUrl,tempDir + "/a-foundation", dataBaseUtil);
       repo.getScm().getDeveloperInfo();
 

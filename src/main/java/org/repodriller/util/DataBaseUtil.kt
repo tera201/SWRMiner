@@ -2,6 +2,7 @@ package org.repodriller.util
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.repodriller.scm.entities.CommitSize
 import org.repodriller.scm.entities.DeveloperInfo
 import java.io.File
 import java.sql.Connection
@@ -96,17 +97,45 @@ class DataBaseUtil(url:String) {
         }
     }
 
-    fun insertCommit(projectId:Int, authorId: Int, hash: String, date: Int, projectSize: Long):String {
-        val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date, projectSize) VALUES(?, ?, ?, ?, ?)"
+    fun insertCommit(projectId:Int, authorId: Int, hash: String, date: Int, projectSize: Long, stability: Double):String {
+        val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date, projectSize, stability) VALUES(?, ?, ?, ?, ?, ?)"
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setInt(2, authorId)
             pstmt.setString(3, hash)
             pstmt.setInt(4, date)
             pstmt.setLong(5, projectSize)
+            pstmt.setDouble(6, stability)
             if (pstmt.executeUpdate() > 0) return getLastInsertStringId()
         }
         return ""
+    }
+
+    fun getCommitSizeMap(projectId: Int, filePath: String) : Map<String, CommitSize>  {
+        val commitSizeMap = mutableMapOf<String, CommitSize>()
+        val sql = """
+        SELECT c.*, a.email as authorEmail, a.name as authorName
+        FROM Commits c
+        JOIN Files f ON f.hash = c.hash AND f.projectId = c.projectId
+        JOIN Authors a ON a.id = c.authorId AND a.projectId = c.projectId
+        WHERE c.projectId = ?
+          AND f.filePath LIKE ?
+    """
+        conn.prepareStatement(sql).use { pstmt ->
+            pstmt.setIntOrNull(1, projectId)
+            pstmt.setString(2, filePath + "%")
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                val hash = rs.getString("hash")
+                val authorName = rs.getString("authorName")
+                val authorEmail = rs.getString("authorEmail")
+                val date = rs.getInt("date")
+                val size = rs.getLong("projectSize")
+                val stability = rs.getDouble("stability")
+                commitSizeMap.put(hash, CommitSize(hash, authorName, authorEmail, size, date, stability))
+            }
+        }
+        return commitSizeMap
     }
 
     fun isCommitExist(hash: String): Boolean {
@@ -191,20 +220,6 @@ class DataBaseUtil(url:String) {
             }
             pstmt.executeBatch()  // Выполнение пакетной вставки
         }
-    }
-
-    fun insertBlame(projectId: Int, authorId: Int, blameFileId: Int, blameHash: String, lineId: Int, lineSize: Long):Int {
-        val sql = "INSERT OR IGNORE INTO Blames(projectId, authorId, blameFileId, blameHash, lineId, lineSize) VALUES(?, ?, ?, ?, ?, ?)"
-        conn.prepareStatement(sql).use { pstmt ->
-            pstmt.setInt(1, projectId)
-            pstmt.setInt(2, authorId)
-            pstmt.setInt(3, blameFileId)
-            pstmt.setString(4, blameHash)
-            pstmt.setInt(5, lineId)
-            pstmt.setLong(6, lineSize)
-            if (pstmt.executeUpdate() > 0) return getLastInsertId()
-        }
-        return -1
     }
 
     fun getDevelopersByProjectId(projectId: Int): Map<String, Int> {

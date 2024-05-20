@@ -492,6 +492,11 @@ public class SubversionRepository implements SCM {
 	}
 
 	@Override
+	public void dbPrepared() throws GitAPIException, IOException {
+		throw new RuntimeException("implement me!");
+	}
+
+	@Override
 	public List<BlamedLine> blame(String file) {
 		throw new RuntimeException("implement me!");
 	}

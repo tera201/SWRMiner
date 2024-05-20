@@ -105,6 +105,7 @@ public interface SCM {
 	Map<String, CommitSize> currentRepositorySize();
 	Map<String, CommitSize> repositorySize(String filePath);
 	Map<String, CommitSize> repositorySize(String branchOrTag, String filePath);
+	void dbPrepared() throws GitAPIException, IOException;
 
 	@Deprecated
 	String blame(String file, String currentCommit, Integer line);
