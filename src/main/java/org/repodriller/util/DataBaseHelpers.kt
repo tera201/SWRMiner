@@ -34,6 +34,13 @@ fun createTables(url: String) {
             projectId INTEGER NOT NULL,
             authorId INTEGER NOT NULL,
             stability DOUBLE NOT NULL,
+            filesAdded INTEGER NOT NULL,
+            filesDeleted INTEGER NOT NULL,
+            filesModified INTEGER NOT NULL,
+            linesAdded INTEGER NOT NULL,
+            linesDeleted INTEGER NOT NULL,
+            linesModified INTEGER NOT NULL,
+            changes INTEGER NOT NULL,
             FOREIGN KEY (projectId) REFERENCES Projects(id),
             FOREIGN KEY (authorId) REFERENCES Authors(id),
             UNIQUE (hash, projectId)

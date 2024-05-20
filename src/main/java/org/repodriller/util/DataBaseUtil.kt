@@ -97,8 +97,8 @@ class DataBaseUtil(url:String) {
         }
     }
 
-    fun insertCommit(projectId:Int, authorId: Int, hash: String, date: Int, projectSize: Long, stability: Double):String {
-        val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date, projectSize, stability) VALUES(?, ?, ?, ?, ?, ?)"
+    fun insertCommit(projectId:Int, authorId: Int, hash: String, date: Int, projectSize: Long, stability: Double, fileEntity: FileEntity):String {
+        val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date, projectSize, stability, filesAdded, filesDeleted, filesModified, linesAdded, linesDeleted, linesModified, changes) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setInt(2, authorId)
@@ -106,9 +106,43 @@ class DataBaseUtil(url:String) {
             pstmt.setInt(4, date)
             pstmt.setLong(5, projectSize)
             pstmt.setDouble(6, stability)
+            pstmt.setInt(7, fileEntity.fileAdded)
+            pstmt.setInt(8, fileEntity.fileDeleted)
+            pstmt.setInt(9, fileEntity.fileModified)
+            pstmt.setInt(10, fileEntity.linesAdded)
+            pstmt.setInt(11, fileEntity.linesDeleted)
+            pstmt.setInt(12, fileEntity.linesModified)
+            pstmt.setInt(13, fileEntity.changes)
             if (pstmt.executeUpdate() > 0) return getLastInsertStringId()
         }
         return ""
+    }
+
+    fun getDeveloperInfo(projectId: Int, filePath: String) : Map<String, CommitSize>  {
+        val commitSizeMap = mutableMapOf<String, CommitSize>()
+        val sql = """
+        SELECT c.*, a.email as authorEmail, a.name as authorName
+        FROM Commits c
+        JOIN Files f ON f.hash = c.hash AND f.projectId = c.projectId
+        JOIN Authors a ON a.id = c.authorId AND a.projectId = c.projectId
+        WHERE c.projectId = ?
+          AND f.filePath LIKE ?
+    """
+        conn.prepareStatement(sql).use { pstmt ->
+            pstmt.setIntOrNull(1, projectId)
+            pstmt.setString(2, filePath + "%")
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                val hash = rs.getString("hash")
+                val authorName = rs.getString("authorName")
+                val authorEmail = rs.getString("authorEmail")
+                val date = rs.getInt("date")
+                val size = rs.getLong("projectSize")
+                val stability = rs.getDouble("stability")
+                commitSizeMap.put(hash, CommitSize(hash, authorName, authorEmail, size, date, stability))
+            }
+        }
+        return commitSizeMap
     }
 
     fun getCommitSizeMap(projectId: Int, filePath: String) : Map<String, CommitSize>  {

@@ -39,6 +39,7 @@ import org.repodriller.filter.diff.DiffFilter;
 import org.repodriller.scm.entities.*;
 import org.repodriller.scm.exceptions.CheckoutException;
 import org.repodriller.util.DataBaseUtil;
+import org.repodriller.util.FileEntity;
 import org.repodriller.util.PathUtils;
 import org.repodriller.util.RDFileUtils;
 
@@ -763,11 +764,16 @@ public class GitRepository implements SCM {
 						PersonIdent author = commit.getAuthorIdent();
 						Integer authorId = dataBaseUtil.getAuthorId(projectId, commit.getAuthorIdent().getEmailAddress());
 						if(authorId == null) authorId = dataBaseUtil.insertAuthor(projectId, author.getName(), author.getEmailAddress());
-						Set<String> paths = GitRepositoryUtil.getCommitsFiles(commit, git);
+						Map<String, FileEntity> paths = GitRepositoryUtil.getCommitsFiles(commit, git);
 						double commitStability = CommitStabilityAnalyzer.analyzeCommit(git, commits, commit, commits.indexOf(commit));
 						long commitSize = GitRepositoryUtil.processCommitSize(commit, git);
-						dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), commitSize, commitStability);
-						paths.forEach(it -> dataBaseUtil.insertFile(projectId, it, commit.getName(), commit.getCommitTime()));
+						FileEntity fileMergedEntity = paths.values().stream().reduce(new FileEntity(0, 0, 0, 0, 0, 0, 0), (acc, fileEntity) -> {
+							acc.add(fileEntity);
+							return acc;
+						});
+						System.out.println("fileMergedEntity: " + fileMergedEntity);
+						dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), commitSize, commitStability, fileMergedEntity);
+						paths.keySet().forEach(it -> dataBaseUtil.insertFile(projectId, it, commit.getName(), commit.getCommitTime()));
 					} catch (Exception e) {
 						System.err.println("Error processing commit " + commit.getName() + ": " + e.getMessage());
 					}

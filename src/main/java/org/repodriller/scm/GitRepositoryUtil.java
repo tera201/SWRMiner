@@ -4,6 +4,7 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.blame.BlameResult;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -13,6 +14,7 @@ import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.repodriller.scm.entities.DeveloperInfo;
 import org.repodriller.util.BlameEntity;
 import org.repodriller.util.DataBaseUtil;
+import org.repodriller.util.FileEntity;
 
 import java.io.IOException;
 import java.util.*;
@@ -33,16 +35,50 @@ public class GitRepositoryUtil {
         }
     }
 
-    public static Set<String> getCommitsFiles(RevCommit commit, Git git) throws IOException {
+    public static Map<String, FileEntity> getCommitsFiles(RevCommit commit, Git git) throws IOException {
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
             RevCommit parent = (commit.getParentCount() > 0) ? commit.getParent(0) : null;
             diffFormatter.setRepository(git.getRepository());
             diffFormatter.setDiffComparator(RawTextComparator.DEFAULT);
             diffFormatter.setDetectRenames(true);
             List<DiffEntry> diffs = diffFormatter.scan(parent, commit);
-            Set<String> paths = new HashSet<>();
+            Map<String, FileEntity> paths = new HashMap();
+
+            int fileAdded = 0, fileDeleted = 0,fileModified = 0, linesAdded = 0, linesDeleted = 0, linesModified = 0, changes  = 0;
+
             for (DiffEntry diff : diffs) {
-                paths.add(diff.getNewPath());
+                switch (diff.getChangeType()) {
+                    case ADD:
+                        fileAdded++;
+                        break;
+                    case DELETE:
+                        fileDeleted++;
+                        break;
+                    case MODIFY:
+                        fileModified++;
+                        break;
+                }
+
+                EditList editList = diffFormatter.toFileHeader(diff).toEditList();
+                for (var edit : editList) {
+                    switch (edit.getType()) {
+                        case INSERT:
+                            linesAdded += edit.getLengthB();
+                            changes += edit.getLengthB();
+                            break;
+                        case DELETE:
+                            linesDeleted += edit.getLengthA();
+                            changes += edit.getLengthA();
+                            break;
+                        case REPLACE:
+                            //TODO getLengthA (removed)  getLengthB (added) - maybe max(A,B) or just B
+                            linesModified += edit.getLengthA() + edit.getLengthB();
+                            changes += edit.getLengthA() + edit.getLengthB();
+                            break;
+                    }
+                }
+                paths.putIfAbsent(diff.getNewPath(), new FileEntity(0, 0, 0, 0, 0, 0, 0));
+                paths.get(diff.getNewPath()).plus(fileAdded, fileDeleted, fileModified, linesAdded, linesDeleted, linesModified, changes);
             }
             return paths;
         }
