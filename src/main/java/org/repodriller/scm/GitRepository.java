@@ -749,23 +749,42 @@ public class GitRepository implements SCM {
 	}
 
 	public void dbPrepared() {
+		ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		List<Future<?>> futures = new ArrayList<>();
 		try (Git git = openRepository()) {
 			List<RevCommit> commits = StreamSupport.stream(git.log().call().spliterator(), false).toList();
+
 			for (int i = 0; i < commits.size(); i++) {
-				RevCommit commit = commits.get(i);
-				if (dataBaseUtil.isCommitExist(commit.getName())) continue;
-				PersonIdent author = commit.getAuthorIdent();
-				Integer authorId = dataBaseUtil.getAuthorId(projectId, commit.getAuthorIdent().getEmailAddress());
-				if (authorId == null) authorId = dataBaseUtil.insertAuthor(projectId, author.getName(), author.getEmailAddress());
-				Set<String> paths = GitRepositoryUtil.getCommitsFiles(commit, git);
-				double commitStability = CommitStabilityAnalyzer.analyzeCommit(git, commits, commit, i);
-				dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), GitRepositoryUtil.processCommitSize(commit, git), commitStability);
-				paths.forEach(it -> dataBaseUtil.insertFile(projectId, it, commit.getName(), commit.getCommitTime()));
+				final RevCommit commit = commits.get(i);
+				// Создаем задачу для каждого коммита
+				Future<?> future = executor.submit(() -> {
+					try {
+						if (dataBaseUtil.isCommitExist(commit.getName())) return;
+						PersonIdent author = commit.getAuthorIdent();
+						Integer authorId = dataBaseUtil.getAuthorId(projectId, commit.getAuthorIdent().getEmailAddress());
+						if(authorId == null) authorId = dataBaseUtil.insertAuthor(projectId, author.getName(), author.getEmailAddress());
+						Set<String> paths = GitRepositoryUtil.getCommitsFiles(commit, git);
+						double commitStability = CommitStabilityAnalyzer.analyzeCommit(git, commits, commit, commits.indexOf(commit));
+						long commitSize = GitRepositoryUtil.processCommitSize(commit, git);
+						dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), commitSize, commitStability);
+						paths.forEach(it -> dataBaseUtil.insertFile(projectId, it, commit.getName(), commit.getCommitTime()));
+					} catch (Exception e) {
+						System.err.println("Error processing commit " + commit.getName() + ": " + e.getMessage());
+					}
+				});
+				futures.add(future);
+			}
+
+			// Дожидаемся завершения всех задач
+			for (Future<?> f : futures) {
+				f.get();
 			}
 		} catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+			throw new RuntimeException(e);
+		} finally {
+			executor.shutdown();
+		}
+	}
 
 	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
 		Map<String, DeveloperInfo> developers = new ConcurrentHashMap<>();
