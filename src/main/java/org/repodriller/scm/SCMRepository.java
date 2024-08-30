@@ -16,6 +16,8 @@
 
 package org.repodriller.scm;
 
+import lombok.Getter;
+
 /**
  * An SCMRepository represents a Source Code Management Repository, i.e. an instance of source code maintained with a version control system.
  * An SCMRepository includes:
@@ -27,11 +29,16 @@ package org.repodriller.scm;
 /* TODO Naming is confusing. */
 public class SCMRepository {
 
+	@Getter
 	private String repoName;
-	private String path; /* Path in local FS. */
-	private String headCommit; /* Most recent commit. */
-	private String firstCommit; /* First commit. */
-	private SCM scm;
+	@Getter
+    private String path; /* Path in local FS. */
+	@Getter
+    private String headCommit; /* Most recent commit. */
+	@Getter
+    private String firstCommit; /* First commit. */
+	@Getter
+    private SCM scm;
 	private String origin; /* e.g. GitHub URL */
 
 	public SCMRepository(SCM scm, String origin, String repoName, String path, String headCommit, String firstCommit) {
@@ -43,27 +50,7 @@ public class SCMRepository {
 		this.firstCommit = firstCommit;
 	}
 
-	public String getRepoName() {
-		return repoName;
-	}
-
-	public String getPath() {
-		return path;
-	}
-
-	public String getHeadCommit() {
-		return headCommit;
-	}
-
-	public String getFirstCommit() {
-		return firstCommit;
-	}
-
-	public SCM getScm() {
-		return scm;
-	}
-
-	public String getOrigin() {
+    public String getOrigin() {
 		return origin == null ? path : origin;
 	}
 

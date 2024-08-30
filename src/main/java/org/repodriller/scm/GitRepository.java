@@ -721,7 +721,6 @@ public class GitRepository implements SCM {
 			}
 
 			BlameResult blameResult = git.blame().setFilePath(file.replace("\\", "/")).setStartCommit(gitCommitToBeBlamed).setFollowFileRenames(true).call();
-			git.close();
 			if (blameResult != null) {
 				int rows = blameResult.getResultContents().size();
 				List<BlamedLine> result = new ArrayList<>();
@@ -760,10 +759,11 @@ public class GitRepository implements SCM {
 				// Создаем задачу для каждого коммита
 				Future<?> future = executor.submit(() -> {
 					try {
-						if (dataBaseUtil.isCommitExist(commit.getName())) return;
+						DataBaseUtil dataBaseUtil1 = new DataBaseUtil(dataBaseUtil.getUrlPath());
+						if (dataBaseUtil1.isCommitExist(commit.getName())) return;
 						PersonIdent author = commit.getAuthorIdent();
-						Integer authorId = dataBaseUtil.getAuthorId(projectId, commit.getAuthorIdent().getEmailAddress());
-						if(authorId == null) authorId = dataBaseUtil.insertAuthor(projectId, author.getName(), author.getEmailAddress());
+						Integer authorId = dataBaseUtil1.getAuthorId(projectId, commit.getAuthorIdent().getEmailAddress());
+						if(authorId == null) authorId = dataBaseUtil1.insertAuthor(projectId, author.getName(), author.getEmailAddress());
 						Map<String, FileEntity> paths = GitRepositoryUtil.getCommitsFiles(commit, git);
 						double commitStability = CommitStabilityAnalyzer.analyzeCommit(git, commits, commit, commits.indexOf(commit));
 						long commitSize = GitRepositoryUtil.processCommitSize(commit, git);
@@ -771,9 +771,9 @@ public class GitRepository implements SCM {
 							acc.add(fileEntity);
 							return acc;
 						});
-						System.out.println("fileMergedEntity: " + fileMergedEntity);
-						dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), commitSize, commitStability, fileMergedEntity);
-						paths.keySet().forEach(it -> dataBaseUtil.insertFile(projectId, it, commit.getName(), commit.getCommitTime()));
+						dataBaseUtil1.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), commitSize, commitStability, fileMergedEntity);
+						paths.keySet().forEach(it -> dataBaseUtil1.insertFile(projectId, it, commit.getName(), commit.getCommitTime()));
+						dataBaseUtil1.closeConnection();
 					} catch (Exception e) {
 						System.err.println("Error processing commit " + commit.getName() + ": " + e.getMessage());
 					}
@@ -839,8 +839,10 @@ public class GitRepository implements SCM {
 				BlameResult blameResult = git.blame().setFilePath(file).call();
 				if (blameResult == null) continue;
 				Future<?> future = executorService.submit(() -> {
-                        GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, devs, dataBaseUtil, projectId, blameFileId);
-						dataBaseUtil.updateBlameFileSize(blameFileId);
+						DataBaseUtil dataBaseUtil1 = new DataBaseUtil(dataBaseUtil.getUrlPath());
+                        GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, devs, dataBaseUtil1, projectId, blameFileId);
+						dataBaseUtil1.updateBlameFileSize(blameFileId);
+						dataBaseUtil1.closeConnection();
                 });
 				futures.add(future);
 			}

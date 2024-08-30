@@ -8,42 +8,17 @@ import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.PreparedStatement
-import java.sql.SQLException
 
 
-class DataBaseUtil(url:String) {
+class DataBaseUtil(val url:String) {
     var conn: Connection
     init {
         try {
-            createTables("jdbc:sqlite:" + url)
-        } catch (e: SQLException) {
-            println(e.message)
+            Class.forName("org.h2.Driver")
+        } catch (e: ClassNotFoundException) {
+            e.printStackTrace()
         }
-        conn = DriverManager.getConnection("jdbc:sqlite:" + url)
-    }
-
-    private fun getLastInsertId():Int {
-        val sqlLastId = "SELECT last_insert_rowid()"
-        conn.createStatement().use { stmt ->
-            stmt.executeQuery(sqlLastId).use { rs ->
-                if (rs.next()) {
-                    return rs.getInt(1)
-                }
-            }
-        }
-        return -1
-    }
-
-    private fun getLastInsertStringId():String {
-        val sqlLastId = "SELECT last_insert_rowid()"
-        conn.createStatement().use { stmt ->
-            stmt.executeQuery(sqlLastId).use { rs ->
-                if (rs.next()) {
-                    return rs.getString(1)
-                }
-            }
-        }
-        return ""
+        conn = DriverManager.getConnection("jdbc:h2:" + url)
     }
 
     private fun getIdExecute(pstmt: PreparedStatement):Int?{
@@ -58,12 +33,29 @@ class DataBaseUtil(url:String) {
         return false
     }
 
+    fun create() {
+        createTables(conn)
+    }
+
+    fun getUrlPath():String {
+        return url
+    }
+
+    fun closeConnection() {
+        conn.close()
+    }
+
     fun insertProject(name: String, filePath: String):Int {
-        val sql = "INSERT OR IGNORE INTO Projects(name, filePath) VALUES(?, ?)"
-        conn.prepareStatement(sql).use { pstmt ->
+        val sql = "MERGE INTO Projects(name, filePath) KEY (name, filePath) VALUES(?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
             pstmt.setString(1, name)
             pstmt.setString(2, filePath)
-            if (pstmt.executeUpdate() > 0) return getLastInsertId()
+            pstmt.executeUpdate()
+            pstmt.generatedKeys.use { generatedKeys ->
+                if (generatedKeys.next()) {
+                    return generatedKeys.getInt(1)
+                }
+            }
         }
         return -1
     }
@@ -78,12 +70,17 @@ class DataBaseUtil(url:String) {
     }
 
     fun insertAuthor(projectId:Int, name: String, email: String):Int {
-        val sql = "INSERT OR IGNORE INTO Authors(projectId, name, email) VALUES(?, ?, ?)"
-        conn.prepareStatement(sql).use { pstmt ->
+        val sql = "MERGE INTO Authors(projectId, name, email) KEY (projectId, email) VALUES(?, ?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setString(2, name)
             pstmt.setString(3, email)
-            if (pstmt.executeUpdate() > 0) return getLastInsertId()
+            pstmt.executeUpdate()
+            pstmt.generatedKeys.use { generatedKeys ->
+                if (generatedKeys.next()) {
+                    return generatedKeys.getInt(1)
+                }
+            }
         }
         return -1
     }
@@ -98,8 +95,8 @@ class DataBaseUtil(url:String) {
     }
 
     fun insertCommit(projectId:Int, authorId: Int, hash: String, date: Int, projectSize: Long, stability: Double, fileEntity: FileEntity):String {
-        val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date, projectSize, stability, filesAdded, filesDeleted, filesModified, linesAdded, linesDeleted, linesModified, changes) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        conn.prepareStatement(sql).use { pstmt ->
+        val sql = "MERGE INTO Commits(projectId, authorId, hash, date, projectSize, stability, filesAdded, filesDeleted, filesModified, linesAdded, linesDeleted, linesModified, changes) KEY (hash, projectId) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setInt(2, authorId)
             pstmt.setString(3, hash)
@@ -113,7 +110,12 @@ class DataBaseUtil(url:String) {
             pstmt.setInt(11, fileEntity.linesDeleted)
             pstmt.setInt(12, fileEntity.linesModified)
             pstmt.setInt(13, fileEntity.changes)
-            if (pstmt.executeUpdate() > 0) return getLastInsertStringId()
+            pstmt.executeUpdate()
+            pstmt.generatedKeys.use { generatedKeys ->
+                if (generatedKeys.next()) {
+                    return generatedKeys.getString(1)
+                }
+            }
         }
         return ""
     }
@@ -181,24 +183,34 @@ class DataBaseUtil(url:String) {
     }
 
     fun insertBlameFile(projectId: Int, filePath: String, fileHash: String):Int {
-        val sql = "INSERT OR IGNORE INTO BlameFiles(projectId, filePath, fileHash) VALUES(?, ?, ?)"
-        conn.prepareStatement(sql).use { pstmt ->
+        val sql = "MERGE INTO BlameFiles(projectId, filePath, fileHash) KEY (projectId, filePath, fileHash) VALUES(?, ?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setString(2, filePath)
             pstmt.setString(3, fileHash)
-            if (pstmt.executeUpdate() > 0) return getLastInsertId()
+            pstmt.executeUpdate()
+            pstmt.generatedKeys.use { generatedKeys ->
+                if (generatedKeys.next()) {
+                    return generatedKeys.getInt(1)
+                }
+            }
         }
         return -1
     }
 
     fun insertFile(projectId: Int, filePath: String, hash: String, date: Int):Int {
-        val sql = "INSERT OR IGNORE INTO Files(projectId, filePath, hash, date) VALUES(?, ?, ?, ?)"
-        conn.prepareStatement(sql).use { pstmt ->
+        val sql = "MERGE INTO Files(projectId, filePath, hash, date) KEY (projectId, filePath, hash) VALUES(?, ?, ?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setString(2, filePath)
             pstmt.setString(3, hash)
             pstmt.setInt(4, date)
-            if (pstmt.executeUpdate() > 0) return getLastInsertId()
+            pstmt.executeUpdate()
+            pstmt.generatedKeys.use { generatedKeys ->
+                if (generatedKeys.next()) {
+                    return generatedKeys.getInt(1)
+                }
+            }
         }
         return -1
     }
@@ -240,8 +252,8 @@ class DataBaseUtil(url:String) {
     }
 
     fun insertBlame(blameEntities: List<BlameEntity>) {
-        val sql = "INSERT OR IGNORE INTO Blames(projectId, authorId, blameFileId, blameHashes, lineIds, lineCounts, lineSize) VALUES(?, ?, ?, ?, ?, ?, ?)"
-        conn.prepareStatement(sql).use { pstmt ->
+        val sql = "MERGE INTO Blames(projectId, authorId, blameFileId, blameHashes, lineIds, lineCounts, lineSize) KEY (projectId, authorId, blameFileId) VALUES(?, ?, ?, ?, ?, ?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
             for (blame in blameEntities) {
                 pstmt.setInt(1, blame.projectId)
                 pstmt.setInt(2, blame.authorId)

@@ -130,7 +130,8 @@ public class BuildModel {
             .buildAsSCMRepository();
   }
   public SCMRepository createClone(String gitUrl, String path, String dataBaseDirPath) {
-    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository.db");
+    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository");
+    dataBaseUtil.create();
     return GitRemoteRepository
             .hostedOn(gitUrl)
             .inTempDir(path)
@@ -138,7 +139,8 @@ public class BuildModel {
             .buildAsSCMRepository();
   }
   public SCMRepository createClone(String gitUrl, String path, String username, String password, String dataBaseDirPath) {
-    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository.db");
+    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository");
+    dataBaseUtil.create();
     return GitRemoteRepository
             .hostedOn(gitUrl)
             .inTempDir(path)
@@ -148,7 +150,8 @@ public class BuildModel {
   }
 
   public SCMRepository getRepository(String gitUrl, String path, String dataBaseDirPath) {
-    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository.db");
+    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository");
+    dataBaseUtil.create();
     return GitRemoteRepository
             .hostedOn(gitUrl)
             .inTempDir(path)
@@ -157,7 +160,8 @@ public class BuildModel {
   }
 
   public SCMRepository getRepository(String projectPath, String dataBaseDirPath) {
-    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository.db");
+    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository");
+    dataBaseUtil.create();
     return new SingleGitRemoteRepositoryBuilder()
             .inTempDir(projectPath)
             .dateBase(dataBaseUtil)
