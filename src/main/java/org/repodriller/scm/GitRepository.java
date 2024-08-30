@@ -771,7 +771,6 @@ public class GitRepository implements SCM {
 							acc.add(fileEntity);
 							return acc;
 						});
-						System.out.println("fileMergedEntity: " + fileMergedEntity);
 						dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), commitSize, commitStability, fileMergedEntity);
 						paths.keySet().forEach(it -> dataBaseUtil.insertFile(projectId, it, commit.getName(), commit.getCommitTime()));
 					} catch (Exception e) {
