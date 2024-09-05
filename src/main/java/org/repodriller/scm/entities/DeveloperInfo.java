@@ -57,15 +57,9 @@ public class DeveloperInfo {
             this.addAuthoredFile(diff.getNewPath());
         }
         switch (diff.getChangeType()) {
-            case ADD:
-                fileAdded++;
-                break;
-            case DELETE:
-                fileDeleted++;
-                break;
-            case MODIFY:
-                fileModified++;
-                break;
+            case ADD ->  fileAdded++;
+            case DELETE -> fileDeleted++;
+            case MODIFY -> fileModified++;
         }
         try (DiffFormatter diffFormatter = new DiffFormatter(out)) {
             diffFormatter.setRepository(repository);
@@ -75,19 +69,19 @@ public class DeveloperInfo {
             EditList editList = diffFormatter.toFileHeader(diff).toEditList();
             for (var edit : editList) {
                 switch (edit.getType()) {
-                    case INSERT:
+                    case INSERT -> {
                         linesAdded += edit.getLengthB();
                         changes += edit.getLengthB();
-                        break;
-                    case DELETE:
+                    }
+                    case DELETE -> {
                         linesDeleted += edit.getLengthA();
                         changes += edit.getLengthA();
-                        break;
-                    case REPLACE:
+                    }
+                    case REPLACE -> {
                         //TODO getLengthA (removed)  getLengthB (added) - maybe max(A,B) or just B
                         linesModified += edit.getLengthA() + edit.getLengthB();
                         changes += edit.getLengthA() + edit.getLengthB();
-                        break;
+                    }
                 }
             }
         }

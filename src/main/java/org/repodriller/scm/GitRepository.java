@@ -16,6 +16,7 @@
 
 package org.repodriller.scm;
 
+import kotlin.Pair;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,6 +53,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -752,28 +754,40 @@ public class GitRepository implements SCM {
 		ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 		List<Future<?>> futures = new ArrayList<>();
 		try (Git git = openRepository()) {
-			List<RevCommit> commits = StreamSupport.stream(git.log().call().spliterator(), false).toList();
+
+			List<RevCommit> commits = StreamSupport.stream(git.log().call().spliterator(), true)
+					.filter(commit -> !dataBaseUtil.isCommitExist(commit.getName()))
+					.toList();
+
+			ConcurrentHashMap<String, Integer> authorIdCache = new ConcurrentHashMap<>();
 
 			for (int i = 0; i < commits.size(); i++) {
 				final RevCommit commit = commits.get(i);
-				// Создаем задачу для каждого коммита
+
 				Future<?> future = executor.submit(() -> {
 					try {
-						DataBaseUtil dataBaseUtil1 = new DataBaseUtil(dataBaseUtil.getUrlPath());
-						if (dataBaseUtil1.isCommitExist(commit.getName())) return;
+						List<org.repodriller.scm.entities.FileEntity> fileList = new ArrayList<>();
 						PersonIdent author = commit.getAuthorIdent();
-						Integer authorId = dataBaseUtil1.getAuthorId(projectId, commit.getAuthorIdent().getEmailAddress());
-						if(authorId == null) authorId = dataBaseUtil1.insertAuthor(projectId, author.getName(), author.getEmailAddress());
+						Integer authorId = authorIdCache.computeIfAbsent(author.getEmailAddress(), e -> {
+							Integer id = dataBaseUtil.getAuthorId(projectId, e);
+							return id != null ? id : dataBaseUtil.insertAuthor(projectId, author.getName(), e);
+						});
 						Map<String, FileEntity> paths = GitRepositoryUtil.getCommitsFiles(commit, git);
+						long start = System.currentTimeMillis();
 						double commitStability = CommitStabilityAnalyzer.analyzeCommit(git, commits, commit, commits.indexOf(commit));
+//						System.out.println("commitStability выполнился за " + (System.currentTimeMillis() - start) + " мс");
+						start = System.currentTimeMillis();
 						long commitSize = GitRepositoryUtil.processCommitSize(commit, git);
+//						System.out.println("processCommitSize выполнился за " + (System.currentTimeMillis() - start) + " мс");
+						start = System.currentTimeMillis();
 						FileEntity fileMergedEntity = paths.values().stream().reduce(new FileEntity(0, 0, 0, 0, 0, 0, 0), (acc, fileEntity) -> {
 							acc.add(fileEntity);
 							return acc;
 						});
-						dataBaseUtil1.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), commitSize, commitStability, fileMergedEntity);
-						paths.keySet().forEach(it -> dataBaseUtil1.insertFile(projectId, it, commit.getName(), commit.getCommitTime()));
-						dataBaseUtil1.closeConnection();
+//						System.out.println("FileEntity выполнился за " + (System.currentTimeMillis() - start) + " мс");
+						dataBaseUtil.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), commitSize, commitStability, fileMergedEntity);
+						paths.keySet().forEach(it -> fileList.add(new org.repodriller.scm.entities.FileEntity(projectId, it, commit.getName(), commit.getCommitTime())));
+						dataBaseUtil.insertFile(fileList);
 					} catch (Exception e) {
 						System.err.println("Error processing commit " + commit.getName() + ": " + e.getMessage());
 					}
@@ -793,9 +807,10 @@ public class GitRepository implements SCM {
 	}
 
 	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
-		Map<String, DeveloperInfo> developers = new ConcurrentHashMap<>();
+		ConcurrentHashMap<String, DeveloperInfo> developers = new ConcurrentHashMap<>();
 
 		try (Git git = openRepository()) {
+			long startTime = System.currentTimeMillis();
 
 			nodePath = Objects.equals(nodePath, path) ? null : nodePath;
 			String localPath = nodePath != null && nodePath.startsWith(path) ? nodePath.substring(path.length() + 1).replace("\\", "/") : nodePath;
@@ -803,7 +818,9 @@ public class GitRepository implements SCM {
 			ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 			List<Future<?>> futures = new ArrayList<>();
 
-			long startTime = System.currentTimeMillis();
+			System.out.println("pre processDeveloperInfo выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
+
+			startTime = System.currentTimeMillis();
 
 			for (RevCommit commit : commits) {
 				// Submitting tasks to the thread pool
@@ -818,31 +835,35 @@ public class GitRepository implements SCM {
 					e.printStackTrace();  // Logging or other error handling
 				}
 			}
-			long endTime = System.currentTimeMillis();
-			long executionTime = endTime - startTime;
-			System.out.println("processDeveloperInfo выполнился за " + executionTime + " мс");
+			System.out.println("processDeveloperInfo выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
 
 			futures.clear();
 
-			String finalNodePath = nodePath;
-			List<String> targetFiles = files().stream().filter(it -> ((finalNodePath == null || it.getFile().getPath().startsWith(finalNodePath)) && !it.getFile().getPath().endsWith(".DS_Store")))
-					.map(it -> it.getFile().getPath().substring(path.length() + 1).replace("\\", "/"))
-					.filter(it -> dataBaseUtil.getBlameFileId(projectId, it, dataBaseUtil.getLastFileHash(projectId, it)) == null
-					).toList();
+			startTime = System.currentTimeMillis();
 
-			targetFiles.forEach(it -> dataBaseUtil.insertBlameFile(projectId, it, dataBaseUtil.getLastFileHash(projectId, it)));
+			String finalNodePath = nodePath;
+			Stream<String> fileStream = files().stream().parallel().filter(it -> ((finalNodePath == null || it.getFile().getPath().startsWith(finalNodePath)) && !it.getFile().getPath().endsWith(".DS_Store")))
+					.map(it -> it.getFile().getPath().substring(path.length() + 1).replace("\\", "/"));
+			Stream<Pair<String, String>> fileHashes = fileStream.parallel().map(it -> new Pair<String, String>(it,dataBaseUtil.getLastFileHash(projectId, it))).filter(it -> dataBaseUtil.getBlameFileId(projectId, it.getFirst(), it.getSecond()) == null);
+			Stream<Pair<String, Integer>> fileAndBlameHashes = fileHashes.parallel().map(it -> new Pair<String, Integer>(it.getFirst(), dataBaseUtil.insertBlameFile(projectId, it.getFirst(), it.getSecond())));
 			Map<String, Integer> devs = dataBaseUtil.getDevelopersByProjectId(projectId);
+			
+			System.out.println("getDevelopersByProjectId выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
 
 			startTime = System.currentTimeMillis();
-			for (String file : targetFiles) {
-				Integer blameFileId = dataBaseUtil.getBlameFileId(projectId, file, dataBaseUtil.getLastFileHash(projectId, file));
-				BlameResult blameResult = git.blame().setFilePath(file).call();
-				if (blameResult == null) continue;
+			for (Pair<String, Integer> filePair : fileAndBlameHashes.collect(Collectors.toSet())) {
 				Future<?> future = executorService.submit(() -> {
-						DataBaseUtil dataBaseUtil1 = new DataBaseUtil(dataBaseUtil.getUrlPath());
-                        GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, devs, dataBaseUtil1, projectId, blameFileId);
-						dataBaseUtil1.updateBlameFileSize(blameFileId);
-						dataBaseUtil1.closeConnection();
+                    BlameResult blameResult = null;
+                    try {
+						ObjectId commitId = ObjectId.fromString(Objects.requireNonNull(dataBaseUtil.getFirstHashForFile(projectId, filePair.getFirst())));
+                        blameResult = git.blame().setFilePath(filePair.getFirst()).setStartCommit(commitId).call();
+                    } catch (GitAPIException e) {
+                        throw new RuntimeException(e);
+                    }
+                    if (blameResult != null) {
+						GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, devs, dataBaseUtil, projectId, filePair.getSecond());
+						dataBaseUtil.updateBlameFileSize(filePair.getSecond());
+					}
                 });
 				futures.add(future);
 			}
@@ -853,27 +874,17 @@ public class GitRepository implements SCM {
 					e.printStackTrace();  // Logging or other error handling
 				}
 			}
-			endTime = System.currentTimeMillis();
-			executionTime = endTime - startTime;
-			dataBaseUtil.getConn().setAutoCommit(true);
+			System.out.println("updateFileOwnerBasedOnBlame выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
 			dataBaseUtil.developerUpdateByBlameInfo(projectId, developers);
-			System.out.println("updateFileOwnerBasedOnBlame выполнился за " + executionTime + " мс");
 			executorService.shutdown();
-			System.out.println(developers.values().stream().map(it -> (String.valueOf(it.getActualLinesOwner()))).collect(Collectors.joining(",")));
-		} catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+		}
         return developers;
 	}
 
-	private void processDeveloperInfo(RevCommit commit, Git git, Map<String, DeveloperInfo> developers) {
+	private void processDeveloperInfo(RevCommit commit, Git git, ConcurrentHashMap<String, DeveloperInfo> developers) {
 		try {
 			String email = commit.getAuthorIdent().getEmailAddress();
-			DeveloperInfo dev = developers.get(email);
-			if (dev == null) {
-				dev = new DeveloperInfo(commit.getAuthorIdent().getName(), email);
-				developers.put(email, dev);
-			}
+			DeveloperInfo dev = developers.computeIfAbsent(email, k -> new DeveloperInfo(commit.getAuthorIdent().getName(), email));
 			dev.addCommit(commit);
 			GitRepositoryUtil.analyzeCommit(commit, git, dev);
 		} catch (IOException ignored) {}

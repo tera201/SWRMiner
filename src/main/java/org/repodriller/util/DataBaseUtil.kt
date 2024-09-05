@@ -198,13 +198,27 @@ class DataBaseUtil(val url:String) {
         return -1
     }
 
-    fun insertFile(projectId: Int, filePath: String, hash: String, date: Int):Int {
+    fun insertFile(fileList: List<org.repodriller.scm.entities.FileEntity>) {
         val sql = "MERGE INTO Files(projectId, filePath, hash, date) KEY (projectId, filePath, hash) VALUES(?, ?, ?, ?)"
         conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
-            pstmt.setInt(1, projectId)
-            pstmt.setString(2, filePath)
-            pstmt.setString(3, hash)
-            pstmt.setInt(4, date)
+            for (file in fileList) {
+                pstmt.setInt(1, file.projectId)
+                pstmt.setString(2, file.filePath)
+                pstmt.setString(3, file.hash)
+                pstmt.setInt(4, file.date)
+                pstmt.addBatch()
+            }
+            pstmt.executeBatch()
+        }
+    }
+
+    fun insertFile(file: org.repodriller.scm.entities.FileEntity):Int {
+        val sql = "MERGE INTO Files(projectId, filePath, hash, date) KEY (projectId, filePath, hash) VALUES(?, ?, ?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
+            pstmt.setInt(1, file.projectId)
+            pstmt.setString(2, file.filePath)
+            pstmt.setString(3, file.hash)
+            pstmt.setInt(4, file.date)
             pstmt.executeUpdate()
             pstmt.generatedKeys.use { generatedKeys ->
                 if (generatedKeys.next()) {
@@ -249,6 +263,56 @@ class DataBaseUtil(val url:String) {
             }
         }
         return null
+    }
+
+    fun getFirstHashForFile(projectId: Int, filePath: String):String? {
+        val sql = """
+            SELECT MIN(hash) as hash
+            FROM Files
+            WHERE projectId = ? AND filePath = ?
+        """.trimIndent()
+        conn.prepareStatement(sql).use { pstmt ->
+            pstmt.setInt(1, projectId)
+            pstmt.setString(2, filePath)
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                val hash = rs.getString("hash")
+                return hash
+            }
+        }
+        return null
+    }
+
+    fun getFirstAndLastHashForFile(projectId: Int, filePath: String):Pair<String, String>? {
+        val sql = """
+            SELECT MIN(hash) AS firstHash, MAX(hash) AS lastHash
+            FROM Files
+            WHERE projectId = ? AND filePath = ?
+        """.trimIndent()
+        conn.prepareStatement(sql).use { pstmt ->
+            pstmt.setInt(1, projectId)
+            pstmt.setString(2, filePath)
+            val rs = pstmt.executeQuery()
+            return if (rs.next()) {
+                Pair(rs.getString("firstHash"), rs.getString("lastHash"))
+            } else {
+                null
+            }
+        }
+    }
+
+    fun insertBlame(blameEntity: BlameEntity) {
+        val sql = "MERGE INTO Blames(projectId, authorId, blameFileId, blameHashes, lineIds, lineCounts, lineSize) KEY (projectId, authorId, blameFileId) VALUES(?, ?, ?, ?, ?, ?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
+            pstmt.setInt(1, blameEntity.projectId)
+            pstmt.setInt(2, blameEntity.authorId)
+            pstmt.setInt(3, blameEntity.blameFileId)
+            pstmt.setString(4, convertListToJson(blameEntity.blameHashes))
+            pstmt.setString(5, convertListToJson(blameEntity.lineIds))
+            pstmt.setLong(6, blameEntity.lineIds.size.toLong())
+            pstmt.setLong(7, blameEntity.lineSize)
+            pstmt.executeUpdate()
+        }
     }
 
     fun insertBlame(blameEntities: List<BlameEntity>) {

@@ -1,6 +1,7 @@
 package org.repodriller.util
 
 data class FileEntity(var fileAdded:Int, var fileDeleted:Int, var fileModified:Int, var linesAdded:Int, var linesDeleted:Int, var linesModified:Int, var changes:Int) {
+
     fun add(fileEntity: FileEntity) {
         fileAdded += fileEntity.fileAdded
         fileDeleted += fileEntity.fileDeleted
