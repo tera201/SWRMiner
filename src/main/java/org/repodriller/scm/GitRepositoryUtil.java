@@ -18,9 +18,12 @@ import org.repodriller.util.FileEntity;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 public class GitRepositoryUtil {
+
+    private static final Map<String, Long> fileSizeCache = new ConcurrentHashMap<>();
 
     public static void analyzeCommit(RevCommit commit, Git git, DeveloperInfo dev) throws IOException {
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
@@ -90,13 +93,17 @@ public class GitRepositoryUtil {
 
                 while (treeWalk.next()) {
                     ObjectId objectId = treeWalk.getObjectId(0);
-
-                    // Открываем объект и проверяем его тип
-                    ObjectLoader loader = reader.open(objectId);
-                    if (loader.getType() == Constants.OBJ_BLOB) {
-                        // Если это blob (файл), добавляем его размер
-                        projectSize += loader.getSize();
-                    }
+                    String objectHash = objectId.getName();
+                    Long size = fileSizeCache.getOrDefault(objectHash, null);
+                    if (size == null) {
+                        // Открываем объект и проверяем его тип
+                        ObjectLoader loader = reader.open(objectId);
+                        if (loader.getType() == Constants.OBJ_BLOB) {
+                            // Если это blob (файл), добавляем его размер
+                            projectSize += loader.getSize();
+                            fileSizeCache.put(objectHash, loader.getSize());
+                        }
+                    } else projectSize += size;
                 }
             }
         } catch (Exception e) {

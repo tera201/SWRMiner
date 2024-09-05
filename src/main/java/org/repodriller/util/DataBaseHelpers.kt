@@ -35,7 +35,7 @@ fun createTables(conn: Connection) {
         CREATE TABLE IF NOT EXISTS Projects (
             id INT PRIMARY KEY AUTO_INCREMENT,
             name VARCHAR(255) NOT NULL,
-            filePath VARCHAR(255) NOT NULL,
+            filePath TEXT NOT NULL,
             UNIQUE (name, filePath) 
         );
     """.trimIndent()
@@ -76,7 +76,7 @@ fun createTables(conn: Connection) {
         CREATE TABLE IF NOT EXISTS Files (
             id INT PRIMARY KEY AUTO_INCREMENT,
             projectId INT NOT NULL,
-            filePath VARCHAR(255) NOT NULL,
+            filePath TEXT NOT NULL,
             hash TEXT,
             date INT NOT NULL,
             FOREIGN KEY (projectId) REFERENCES Projects(id),
@@ -109,7 +109,7 @@ fun createTables(conn: Connection) {
         CREATE TABLE IF NOT EXISTS BlameFiles (
             id INT PRIMARY KEY AUTO_INCREMENT,
             projectId INT NOT NULL,
-            filePath VARCHAR(255) NOT NULL,
+            filePath TEXT NOT NULL,
             fileHash TEXT NOT NULL,
             lineSize BIGINT,
             FOREIGN KEY (projectId) REFERENCES Projects(id),
