@@ -6,9 +6,9 @@ import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.diff.RawTextComparator;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.repodriller.scm.entities.DeveloperInfo;
@@ -18,9 +18,12 @@ import org.repodriller.util.FileEntity;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 public class GitRepositoryUtil {
+
+    private static final Map<String, Long> fileSizeCache = new ConcurrentHashMap<>();
 
     public static void analyzeCommit(RevCommit commit, Git git, DeveloperInfo dev) throws IOException {
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
@@ -42,39 +45,33 @@ public class GitRepositoryUtil {
             diffFormatter.setDiffComparator(RawTextComparator.DEFAULT);
             diffFormatter.setDetectRenames(true);
             List<DiffEntry> diffs = diffFormatter.scan(parent, commit);
-            Map<String, FileEntity> paths = new HashMap();
+            Map<String, FileEntity> paths = new HashMap<>();
 
             int fileAdded = 0, fileDeleted = 0,fileModified = 0, linesAdded = 0, linesDeleted = 0, linesModified = 0, changes  = 0;
 
             for (DiffEntry diff : diffs) {
                 switch (diff.getChangeType()) {
-                    case ADD:
-                        fileAdded++;
-                        break;
-                    case DELETE:
-                        fileDeleted++;
-                        break;
-                    case MODIFY:
-                        fileModified++;
-                        break;
+                    case ADD -> fileAdded++;
+                    case DELETE -> fileDeleted++;
+                    case MODIFY -> fileModified++;
                 }
 
                 EditList editList = diffFormatter.toFileHeader(diff).toEditList();
                 for (var edit : editList) {
                     switch (edit.getType()) {
-                        case INSERT:
-                            linesAdded += edit.getLengthB();
-                            changes += edit.getLengthB();
-                            break;
-                        case DELETE:
+                        case INSERT -> {
+                                linesAdded += edit.getLengthB();
+                                changes += edit.getLengthB();
+                        }
+                        case DELETE -> {
                             linesDeleted += edit.getLengthA();
                             changes += edit.getLengthA();
-                            break;
-                        case REPLACE:
-                            //TODO getLengthA (removed)  getLengthB (added) - maybe max(A,B) or just B
+                        }
+                        case REPLACE -> {
+                                //TODO getLengthA (removed)  getLengthB (added) - maybe max(A,B) or just B
                             linesModified += edit.getLengthA() + edit.getLengthB();
                             changes += edit.getLengthA() + edit.getLengthB();
-                            break;
+                        }
                     }
                 }
                 paths.putIfAbsent(diff.getNewPath(), new FileEntity(0, 0, 0, 0, 0, 0, 0));
@@ -85,18 +82,38 @@ public class GitRepositoryUtil {
     }
 
     public static long processCommitSize(RevCommit commit, Git git) {
-        try (TreeWalk treeWalk = new TreeWalk(git.getRepository())) {
-            long projectSize = 0;
-            treeWalk.addTree(commit.getTree());
-            treeWalk.setRecursive(true);
-            while (treeWalk.next()) {
-                ObjectId objectId = treeWalk.getObjectId(0);
-                long size = git.getRepository().getObjectDatabase().open(objectId).getSize();
-               projectSize += size;
+        long projectSize = 0;
+        ObjectReader reader = null;
+        try {
+            reader = git.getRepository().newObjectReader();
+            // TreeWalk для обхода файлов в дереве коммита
+            try (TreeWalk treeWalk = new TreeWalk(git.getRepository())) {
+                treeWalk.addTree(commit.getTree());
+                treeWalk.setRecursive(true);  // Рекурсивный обход всех файлов
+
+                while (treeWalk.next()) {
+                    ObjectId objectId = treeWalk.getObjectId(0);
+                    String objectHash = objectId.getName();
+                    Long size = fileSizeCache.getOrDefault(objectHash, null);
+                    if (size == null) {
+                        // Открываем объект и проверяем его тип
+                        ObjectLoader loader = reader.open(objectId);
+                        if (loader.getType() == Constants.OBJ_BLOB) {
+                            // Если это blob (файл), добавляем его размер
+                            projectSize += loader.getSize();
+                            fileSizeCache.put(objectHash, loader.getSize());
+                        }
+                    } else projectSize += size;
+                }
             }
-            return projectSize;
-        } catch (Exception e) {}
-        return 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (reader != null) {
+                reader.close();  // Закрываем ObjectReader
+            }
+        }
+        return projectSize;
     }
 
     public static void updateFileOwnerBasedOnBlame(BlameResult blameResult, Map<String, DeveloperInfo> developers) {
@@ -123,8 +140,7 @@ public class GitRepositoryUtil {
                 PersonIdent author = blameResult.getSourceAuthor(i);
                 String commitHash = blameResult.getSourceCommit(i).getName();
                 long lineSize = blameResult.getResultContents().getString(i).getBytes().length;
-                BlameEntity blameEntity = blameEntityMap.getOrDefault(blameResult.getSourceAuthor(i).getEmailAddress(), new BlameEntity(projectId, devs.get(author.getEmailAddress()), blameFileId, new ArrayList<>(), new ArrayList<>(), 0));
-                blameEntityMap.putIfAbsent(blameResult.getSourceAuthor(i).getEmailAddress(), blameEntity);
+                BlameEntity blameEntity = blameEntityMap.computeIfAbsent(author.getEmailAddress(), key -> new BlameEntity(projectId, devs.get(key), blameFileId, new ArrayList<>(), new ArrayList<>(), 0));
                 blameEntity.getBlameHashes().add(commitHash);
                 blameEntity.getLineIds().add(i);
                 blameEntity.setLineSize(blameEntity.getLineSize() + lineSize);

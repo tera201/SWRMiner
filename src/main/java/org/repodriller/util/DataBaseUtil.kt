@@ -11,11 +11,11 @@ import java.sql.PreparedStatement
 import java.sql.SQLException
 
 
-class DataBaseUtil(url:String) {
+class DataBaseUtil(val url:String) {
     var conn: Connection
     init {
         try {
-            createTables("jdbc:sqlite:" + url)
+            Class.forName("org.sqlite.JDBC")
         } catch (e: SQLException) {
             println(e.message)
         }
@@ -56,6 +56,18 @@ class DataBaseUtil(url:String) {
     private fun isExistExecute(pstmt: PreparedStatement): Boolean{
         pstmt.executeQuery().use { rs -> if (rs.next())  return true }
         return false
+    }
+
+    fun create() {
+        createTables(conn)
+    }
+
+    fun getUrlPath():String {
+        return url
+    }
+
+    fun closeConnection() {
+        conn.close()
     }
 
     fun insertProject(name: String, filePath: String):Int {
@@ -203,6 +215,32 @@ class DataBaseUtil(url:String) {
         return -1
     }
 
+    fun insertFile(fileList: List<org.repodriller.scm.entities.FileEntity>) {
+        val sql = "INSERT OR IGNORE INTO Files(projectId, filePath, hash, date) VALUES(?, ?, ?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
+            for (file in fileList) {
+                pstmt.setInt(1, file.projectId)
+                pstmt.setString(2, file.filePath)
+                pstmt.setString(3, file.hash)
+                pstmt.setInt(4, file.date)
+                pstmt.addBatch()
+            }
+            pstmt.executeBatch()
+        }
+    }
+
+    fun insertFile(file: org.repodriller.scm.entities.FileEntity):Int {
+        val sql = "INSERT OR IGNORE INTO Files(projectId, filePath, hash, date) VALUES(?, ?, ?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
+            pstmt.setInt(1, file.projectId)
+            pstmt.setString(2, file.filePath)
+            pstmt.setString(3, file.hash)
+            pstmt.setInt(4, file.date)
+            if (pstmt.executeUpdate() > 0) return getLastInsertId()
+        }
+        return -1
+    }
+
     fun updateBlameFileSize(blameFileId: Int) {
         val sqlUpdate = """
         UPDATE BlameFiles SET lineSize = (SELECT SUM(lineSize) FROM Blames WHERE blameFileId = ? GROUP BY projectId AND blameFileId) WHERE id = ?
@@ -237,6 +275,38 @@ class DataBaseUtil(url:String) {
             }
         }
         return null
+    }
+
+    fun getFirstAndLastHashForFile(projectId: Int, filePath: String):Pair<String, String>? {
+        val sql = """
+            SELECT MIN(hash) AS firstHash, MAX(hash) AS lastHash
+            FROM Files
+            WHERE projectId = ? AND filePath = ?
+        """.trimIndent()
+        conn.prepareStatement(sql).use { pstmt ->
+            pstmt.setInt(1, projectId)
+            pstmt.setString(2, filePath)
+            val rs = pstmt.executeQuery()
+            return if (rs.next()) {
+                Pair(rs.getString("firstHash"), rs.getString("lastHash"))
+            } else {
+                null
+            }
+        }
+    }
+
+    fun insertBlame(blameEntity: BlameEntity) {
+        val sql = "INSERT OR IGNORE INTO Blames(projectId, authorId, blameFileId, blameHashes, lineIds, lineCounts, lineSize) VALUES(?, ?, ?, ?, ?, ?, ?)"
+        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
+            pstmt.setInt(1, blameEntity.projectId)
+            pstmt.setInt(2, blameEntity.authorId)
+            pstmt.setInt(3, blameEntity.blameFileId)
+            pstmt.setString(4, convertListToJson(blameEntity.blameHashes))
+            pstmt.setString(5, convertListToJson(blameEntity.lineIds))
+            pstmt.setLong(6, blameEntity.lineIds.size.toLong())
+            pstmt.setLong(7, blameEntity.lineSize)
+            pstmt.executeUpdate()
+        }
     }
 
     fun insertBlame(blameEntities: List<BlameEntity>) {

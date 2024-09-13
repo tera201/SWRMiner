@@ -1,7 +1,6 @@
 package org.repodriller.scm.entities;
 
 import lombok.Getter;
-import lombok.Setter;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.EditList;
@@ -15,9 +14,10 @@ import java.util.List;
 
 @Getter
 public class DeveloperInfo {
+    private int id;
     private final String name;
     private final String emailAddress;
-    private List<RevCommit> commits;
+    private final List<RevCommit> commits;
     private long changes;
     private long changesSize;
     public long actualLinesOwner;
@@ -32,6 +32,11 @@ public class DeveloperInfo {
     public List<String> ownerForFiles;
 
     public DeveloperInfo(String name, String emailAddress) {
+        this(name, emailAddress, 0);
+    }
+
+    public DeveloperInfo(String name, String emailAddress, int id) {
+        this.id = id;
         this.name = name;
         this.emailAddress = emailAddress;
         this.commits = new ArrayList<>();
@@ -57,15 +62,9 @@ public class DeveloperInfo {
             this.addAuthoredFile(diff.getNewPath());
         }
         switch (diff.getChangeType()) {
-            case ADD:
-                fileAdded++;
-                break;
-            case DELETE:
-                fileDeleted++;
-                break;
-            case MODIFY:
-                fileModified++;
-                break;
+            case ADD ->  fileAdded++;
+            case DELETE -> fileDeleted++;
+            case MODIFY -> fileModified++;
         }
         try (DiffFormatter diffFormatter = new DiffFormatter(out)) {
             diffFormatter.setRepository(repository);
@@ -75,19 +74,19 @@ public class DeveloperInfo {
             EditList editList = diffFormatter.toFileHeader(diff).toEditList();
             for (var edit : editList) {
                 switch (edit.getType()) {
-                    case INSERT:
+                    case INSERT -> {
                         linesAdded += edit.getLengthB();
                         changes += edit.getLengthB();
-                        break;
-                    case DELETE:
+                    }
+                    case DELETE -> {
                         linesDeleted += edit.getLengthA();
                         changes += edit.getLengthA();
-                        break;
-                    case REPLACE:
+                    }
+                    case REPLACE -> {
                         //TODO getLengthA (removed)  getLengthB (added) - maybe max(A,B) or just B
                         linesModified += edit.getLengthA() + edit.getLengthB();
                         changes += edit.getLengthA() + edit.getLengthB();
-                        break;
+                    }
                 }
             }
         }

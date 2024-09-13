@@ -1,10 +1,36 @@
 package org.repodriller.util
 
+import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.PreparedStatement
 import java.sql.SQLException
 
-fun createTables(url: String) {
+private fun allTablesExist(conn: Connection, tableNames: List<String>): Boolean {
+    val meta = conn.metaData
+    val schema = conn.schema // Используйте схему по умолчанию, если не указана другая
+
+    for (tableName in tableNames) {
+        val rs = meta.getTables(null, schema, tableName, null)
+        var tableExists = false
+
+        while (rs.next()) {
+            val table = rs.getString("TABLE_NAME")
+            println(table)
+            if (table.equals(tableName, ignoreCase = true)) {
+                tableExists = true
+                break
+            }
+        }
+
+        if (!tableExists) {
+            System.err.println("Table $tableName does not exist")
+            return false
+        }
+    }
+    return true
+}
+
+fun createTables(conn: Connection) {
     // SQL statement for creating tables
 
     val sqlCreateProjects = """
@@ -26,6 +52,7 @@ fun createTables(url: String) {
             UNIQUE (email, projectId) 
         );
     """.trimIndent()
+
     val sqlCreateCommits = """
         CREATE TABLE IF NOT EXISTS Commits (
             hash TEXT PRIMARY KEY,
@@ -110,43 +137,56 @@ fun createTables(url: String) {
         );
     """.trimIndent()
 
+//    if (!allTablesExist(conn, listOf("Projects", "Authors", "Commits", "Files", "Changes", "BlameFiles", "Blames"))) {
+//        conn.createStatement().use { stmt ->
+//            stmt.execute(sqlCreateProjects)
+//            stmt.execute(sqlCreateAuthors)
+//            stmt.execute(sqlCreateCommits)
+//            stmt.execute(sqlCreateFiles)
+//            stmt.execute(sqlCreateChanges)
+//            stmt.execute(sqlCreateBlameFiles)
+//            stmt.execute(sqlCreateBlame)
+//            println("Tables have been created.")
+//        }
+//    }
+
     try {
-        DriverManager.getConnection(url).use { conn ->
-            conn.createStatement().use { stmt ->
-                stmt.execute(sqlCreateProjects)
-                stmt.execute(sqlCreateAuthors)
-                stmt.execute(sqlCreateCommits)
-                stmt.execute(sqlCreateFiles)
-                stmt.execute(sqlCreateChanges)
-                stmt.execute(sqlCreateBlameFiles)
-                stmt.execute(sqlCreateBlame)
-                println("Tables have been created.")
-            }
+        conn.createStatement().use { stmt ->
+            stmt.execute(sqlCreateProjects)
+            stmt.execute(sqlCreateAuthors)
+            stmt.execute(sqlCreateCommits)
+            stmt.execute(sqlCreateFiles)
+            stmt.execute(sqlCreateChanges)
+            stmt.execute(sqlCreateBlameFiles)
+            stmt.execute(sqlCreateBlame)
+            println("Tables have been created.")
         }
     } catch (e: SQLException) {
         println(e.message)
     }
 }
 
-fun dropTables(url: String) {
+fun dropTables(conn: Connection) {
     val sqlDropProjects = "DROP TABLE IF EXISTS Projects"
     val sqlDropModels = "DROP TABLE IF EXISTS Models"
     val sqlDropAuthors = "DROP TABLE IF EXISTS Authors"
     val sqlDropCommits = "DROP TABLE IF EXISTS Commits"
+    val sqlDropFiles = "DROP TABLE IF EXISTS Files"
     val sqlDropChanges = "DROP TABLE IF EXISTS Changes"
+    val sqlDropBlameFiles = "DROP TABLE IF EXISTS BlameFiles"
     val sqlDropBlames = "DROP TABLE IF EXISTS Blames"
 
     try {
-        DriverManager.getConnection(url).use { conn ->
-            conn.createStatement().use { stmt ->
-                stmt.execute(sqlDropProjects)
-                stmt.execute(sqlDropModels)
-                stmt.execute(sqlDropAuthors)
-                stmt.execute(sqlDropCommits)
-                stmt.execute(sqlDropChanges)
-                stmt.execute(sqlDropBlames)
-                println("Tables have been created.")
-            }
+        conn.createStatement().use { stmt ->
+            stmt.execute(sqlDropProjects)
+            stmt.execute(sqlDropModels)
+            stmt.execute(sqlDropAuthors)
+            stmt.execute(sqlDropCommits)
+            stmt.execute(sqlDropChanges)
+            stmt.execute(sqlDropBlames)
+            stmt.execute(sqlDropFiles)
+            stmt.execute(sqlDropBlameFiles)
+            println("Tables have been created.")
         }
     } catch (e: SQLException) {
         println(e.message)
