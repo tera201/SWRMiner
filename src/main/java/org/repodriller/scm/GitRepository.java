@@ -49,7 +49,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -78,6 +77,8 @@ public class GitRepository implements SCM {
 	private CollectConfiguration collectConfig;
 
 	private static Logger log = LogManager.getLogger(GitRepository.class);
+
+	private static final Map<String, DeveloperInfo> developersMap = new ConcurrentHashMap<>();
 
 	private String repoName = null;
 
@@ -391,11 +392,10 @@ public class GitRepository implements SCM {
 			return new HashSet<>();
 
 		List<Ref> gitBranches = git.branchList().setContains(hash).call();
-		Set<String> mappedBranches = gitBranches.stream()
+		return gitBranches.stream()
 				.map(
 					  (ref) -> ref.getName().substring(ref.getName().lastIndexOf("/") + 1))
 				.collect(Collectors.toSet());
-		return mappedBranches;
 	}
 	@Override
 	public List<Ref> getAllBranches() {
@@ -855,9 +855,8 @@ public class GitRepository implements SCM {
 				Future<?> future = executorService.submit(() -> {
                     BlameResult blameResult = null;
                     try {
-						ObjectId commitId = ObjectId.fromString(Objects.requireNonNull(dataBaseUtil.getFirstHashForFile(projectId, filePair.getFirst())));
-                        blameResult = git.blame().setFilePath(filePair.getFirst()).setStartCommit(commitId).call();
-                    } catch (GitAPIException e) {
+                        blameResult = git.blame().setFilePath(filePair.getFirst()).setStartCommit(git.getRepository().resolve(Constants.HEAD)).call();
+                    } catch (GitAPIException | IOException e) {
                         throw new RuntimeException(e);
                     }
                     if (blameResult != null) {
