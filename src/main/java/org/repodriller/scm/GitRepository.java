@@ -783,6 +783,7 @@ public class GitRepository implements SCM {
 						dataBaseUtil1.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), commitSize, commitStability, fileMergedEntity);
 						paths.keySet().forEach(it -> fileList.add(new org.repodriller.scm.entities.FileEntity(projectId, it, commit.getName(), commit.getCommitTime())));
 						dataBaseUtil1.insertFile(fileList);
+						dataBaseUtil1.closeConnection();
 					} catch (Exception e) {
 						System.err.println("Error processing commit " + commit.getName() + ": " + e.getMessage());
 					}
@@ -821,6 +822,7 @@ public class GitRepository implements SCM {
 					CommitEntity commitEntity = dataBaseUtil1.getCommit(projectId, commit.getName());
 					DeveloperInfo dev = developersMap.computeIfAbsent(commitEntity.getAuthorEmail(), k -> new DeveloperInfo(commitEntity, commit));
 					dev.updateByCommit(commitEntity, commit);
+					dataBaseUtil1.closeConnection();
 				});
 				futures.add(future);
 			}
@@ -851,6 +853,7 @@ public class GitRepository implements SCM {
 			startTime = System.currentTimeMillis();
 			for (Pair<String, Integer> filePair : fileAndBlameHashes.collect(Collectors.toSet())) {
 				Future<?> future = executorService.submit(() -> {
+					DataBaseUtil dataBaseUtil1 = new DataBaseUtil(dataBaseUtil.getUrl());
                     BlameResult blameResult = null;
                     try {
                         blameResult = git.blame().setFilePath(filePair.getFirst()).setStartCommit(head).call();
@@ -858,8 +861,9 @@ public class GitRepository implements SCM {
                         throw new RuntimeException(e);
                     }
                     if (blameResult != null) {
-						GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, devs, dataBaseUtil, projectId, filePair.getSecond(), head.getName());
-						dataBaseUtil.updateBlameFileSize(filePair.getSecond());
+						GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, devs, dataBaseUtil1, projectId, filePair.getSecond(), head.getName());
+						dataBaseUtil1.updateBlameFileSize(filePair.getSecond());
+						dataBaseUtil1.closeConnection();
 					}
                 });
 				futures.add(future);
