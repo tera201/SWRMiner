@@ -1,20 +1,24 @@
 package org.repodriller.scm.entities;
 
+import lombok.Data;
 import lombok.Getter;
+import lombok.Setter;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.repodriller.util.CommitEntity;
+import org.repodriller.util.FileEntity;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-@Getter
+@Data
 public class DeveloperInfo {
-    private int id;
+    private String id;
     private final String name;
     private final String emailAddress;
     private final List<RevCommit> commits;
@@ -32,10 +36,28 @@ public class DeveloperInfo {
     public List<String> ownerForFiles;
 
     public DeveloperInfo(String name, String emailAddress) {
-        this(name, emailAddress, 0);
+        this(name, emailAddress, "");
     }
 
-    public DeveloperInfo(String name, String emailAddress, int id) {
+    public DeveloperInfo(CommitEntity commitEntity, RevCommit commit) {
+        this.id = commitEntity.getAuthorId();
+        this.name = commitEntity.getAuthorName();
+        this.emailAddress = commitEntity.getAuthorEmail();
+        this.commits = new ArrayList<>();
+        this.authorForFiles = new ArrayList<>();
+        this.ownerForFiles = new ArrayList<>();
+        this.commits.add(commit);
+        this.changes = commitEntity.getFileEntity().getChanges();
+        this.changesSize = commitEntity.getFileEntity().getChangesSize();
+        this.linesAdded = commitEntity.getFileEntity().getLinesAdded();
+        this.linesDeleted = commitEntity.getFileEntity().getLinesDeleted();
+        this.linesModified = commitEntity.getFileEntity().getLinesModified();
+        this.fileAdded = commitEntity.getFileEntity().getFileAdded();
+        this.fileDeleted = commitEntity.getFileEntity().getFileDeleted();
+        this.fileModified = commitEntity.getFileEntity().getFileModified();
+    }
+
+    public DeveloperInfo(String name, String emailAddress, String id) {
         this.id = id;
         this.name = name;
         this.emailAddress = emailAddress;
@@ -48,12 +70,51 @@ public class DeveloperInfo {
         commits.add(commit);
     }
 
+    public void updateByCommit(CommitEntity commitEntity, RevCommit commit) {
+            this.commits.add(commit);
+            this.changes += commitEntity.getFileEntity().getChanges();
+            this.changesSize += commitEntity.getFileEntity().getChangesSize();
+            this.linesAdded += commitEntity.getFileEntity().getLinesAdded();
+            this.linesDeleted += commitEntity.getFileEntity().getLinesDeleted();
+            this.linesModified += commitEntity.getFileEntity().getLinesModified();
+            this.fileAdded += commitEntity.getFileEntity().getFileAdded();
+            this.fileDeleted += commitEntity.getFileEntity().getFileDeleted();
+            this.fileModified += commitEntity.getFileEntity().getFileModified();
+    }
+
     public void addAuthoredFile(String filePath) {
         authorForFiles.add(filePath);
     }
 
     public void addOwnedFile(String filePath) {
         ownerForFiles.add(filePath);
+    }
+
+    public void plusLinesAdded(long linesAdded) { this.linesAdded += linesAdded; }
+
+    public void plusLinesDeleted(long linesDeleted) { this.linesDeleted += linesDeleted; }
+
+    public void plusLinesModified(long linesModified) { this.linesModified += linesModified; }
+
+    public void plusFilesAdded(long filesAdded) { this.fileAdded += filesAdded; }
+
+    public void plusFilesDeleted(long filesDeleted) { this.fileDeleted += filesDeleted; }
+
+    public void plusFilesModified(long filesModified) { this.fileModified += filesModified; }
+
+    public void plusChanges(long changes) { this.changes += changes; }
+
+    public void plusChangesSize(long changesSize) { this.changesSize += changesSize; }
+
+    public void processFileEntity(FileEntity fileEntity) {
+        this.plusFilesAdded(fileEntity.getLinesAdded());
+        this.plusFilesDeleted(fileEntity.getLinesDeleted());
+        this.plusFilesModified(fileEntity.getLinesModified());
+        this.plusLinesAdded(fileEntity.getLinesAdded());
+        this.plusLinesDeleted(fileEntity.getLinesDeleted());
+        this.plusLinesModified(fileEntity.getLinesModified());
+        this.plusChanges(fileEntity.getChanges());
+        this.plusChangesSize(fileEntity.getChangesSize());
     }
 
     public void processDiff(DiffEntry diff, Repository repository) throws IOException {

@@ -1,6 +1,6 @@
 package org.repodriller.util
 
-data class FileEntity(var fileAdded:Int, var fileDeleted:Int, var fileModified:Int, var linesAdded:Int, var linesDeleted:Int, var linesModified:Int, var changes:Int) {
+data class FileEntity(var fileAdded:Int, var fileDeleted:Int, var fileModified:Int, var linesAdded:Int, var linesDeleted:Int, var linesModified:Int, var changes:Int, var changesSize: Int) {
 
     fun add(fileEntity: FileEntity) {
         fileAdded += fileEntity.fileAdded
@@ -11,7 +11,7 @@ data class FileEntity(var fileAdded:Int, var fileDeleted:Int, var fileModified:I
         linesModified += fileEntity.linesModified
         changes += fileEntity.changes
     }
-    fun plus(fileAdded:Int, fileDeleted:Int, fileModified:Int, linesAdded:Int, linesDeleted:Int, linesModified:Int, changes:Int) {
+    fun plus(fileAdded:Int, fileDeleted:Int, fileModified:Int, linesAdded:Int, linesDeleted:Int, linesModified:Int, changes:Int, changesSize:Int) {
         this.fileAdded += fileAdded
         this.fileDeleted += fileDeleted
         this.fileModified += fileModified
@@ -19,5 +19,6 @@ data class FileEntity(var fileAdded:Int, var fileDeleted:Int, var fileModified:I
         this.linesDeleted += linesDeleted
         this.linesModified += linesModified
         this.changes += changes
+        this.changesSize += changesSize
     }
 }

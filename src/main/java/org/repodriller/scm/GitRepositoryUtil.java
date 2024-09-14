@@ -8,7 +8,6 @@ import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.repodriller.scm.entities.DeveloperInfo;
@@ -16,6 +15,7 @@ import org.repodriller.util.BlameEntity;
 import org.repodriller.util.DataBaseUtil;
 import org.repodriller.util.FileEntity;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,8 +38,9 @@ public class GitRepositoryUtil {
         }
     }
 
-    public static Map<String, FileEntity> getCommitsFiles(RevCommit commit, Git git) throws IOException {
-        try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
+    public static Map<String, FileEntity> getCommitsFiles(RevCommit commit, Git git, DeveloperInfo dev) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (DiffFormatter diffFormatter = new DiffFormatter(out)) {
             RevCommit parent = (commit.getParentCount() > 0) ? commit.getParent(0) : null;
             diffFormatter.setRepository(git.getRepository());
             diffFormatter.setDiffComparator(RawTextComparator.DEFAULT);
@@ -74,8 +75,9 @@ public class GitRepositoryUtil {
                         }
                     }
                 }
-                paths.putIfAbsent(diff.getNewPath(), new FileEntity(0, 0, 0, 0, 0, 0, 0));
-                paths.get(diff.getNewPath()).plus(fileAdded, fileDeleted, fileModified, linesAdded, linesDeleted, linesModified, changes);
+                paths.putIfAbsent(diff.getNewPath(), new FileEntity(0, 0, 0, 0, 0, 0, 0, 0));
+                paths.get(diff.getNewPath()).plus(fileAdded, fileDeleted, fileModified, linesAdded, linesDeleted, linesModified, changes, out.size());
+                dev.processFileEntity(paths.get(diff.getNewPath()));
             }
             return paths;
         }
@@ -110,7 +112,7 @@ public class GitRepositoryUtil {
             e.printStackTrace();
         } finally {
             if (reader != null) {
-                reader.close();  // Закрываем ObjectReader
+                reader.close();
             }
         }
         return projectSize;
@@ -133,7 +135,7 @@ public class GitRepositoryUtil {
         } else System.out.println("Blame for file " + blameResult.getResultPath() + " not found");
     }
 
-    public static void updateFileOwnerBasedOnBlame(BlameResult blameResult, Map<String, Integer> devs, DataBaseUtil dataBaseUtil, Integer projectId, Integer blameFileId) {
+    public static void updateFileOwnerBasedOnBlame(BlameResult blameResult, Map<String, String> devs, DataBaseUtil dataBaseUtil, Integer projectId, Integer blameFileId, String headHash) {
         Map<String, BlameEntity> blameEntityMap = new HashMap<>();
         if (blameResult != null) {
             for (int i = 0; i < blameResult.getResultContents().size(); i++) {
@@ -141,7 +143,7 @@ public class GitRepositoryUtil {
                 String commitHash = blameResult.getSourceCommit(i).getName();
                 long lineSize = blameResult.getResultContents().getString(i).getBytes().length;
                 BlameEntity blameEntity = blameEntityMap.computeIfAbsent(author.getEmailAddress(), key -> new BlameEntity(projectId, devs.get(key), blameFileId, new ArrayList<>(), new ArrayList<>(), 0));
-                blameEntity.getBlameHashes().add(commitHash);
+                blameEntity.getBlameHashes().add(headHash);
                 blameEntity.getLineIds().add(i);
                 blameEntity.setLineSize(blameEntity.getLineSize() + lineSize);
             }

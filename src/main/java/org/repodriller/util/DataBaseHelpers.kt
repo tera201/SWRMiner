@@ -44,7 +44,7 @@ fun createTables(conn: Connection) {
 
     val sqlCreateAuthors = """
         CREATE TABLE IF NOT EXISTS Authors (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             email TEXT NOT NULL,
             projectId INTEGER NOT NULL,
@@ -59,7 +59,7 @@ fun createTables(conn: Connection) {
             date INTEGER NOT NULL,
             projectSize LONG,
             projectId INTEGER NOT NULL,
-            authorId INTEGER NOT NULL,
+            authorId TEXT NOT NULL,
             stability DOUBLE NOT NULL,
             filesAdded INTEGER NOT NULL,
             filesDeleted INTEGER NOT NULL,
@@ -68,6 +68,7 @@ fun createTables(conn: Connection) {
             linesDeleted INTEGER NOT NULL,
             linesModified INTEGER NOT NULL,
             changes INTEGER NOT NULL,
+            changesSize INTEGER NOT NULL,
             FOREIGN KEY (projectId) REFERENCES Projects(id),
             FOREIGN KEY (authorId) REFERENCES Authors(id),
             UNIQUE (hash, projectId)
@@ -124,7 +125,7 @@ fun createTables(conn: Connection) {
         CREATE TABLE IF NOT EXISTS Blames (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             projectId INT NOT NULL,
-            authorId INT NOT NULL,
+            authorId TEXT NOT NULL,
             blameFileId INT NOT NULL,
             blameHashes TEXT NOT NULL,
             lineIds TEXT NOT NULL,

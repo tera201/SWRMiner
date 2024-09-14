@@ -9,6 +9,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.PreparedStatement
 import java.sql.SQLException
+import java.util.*
 
 
 class DataBaseUtil(val url:String) {
@@ -20,6 +21,27 @@ class DataBaseUtil(val url:String) {
             println(e.message)
         }
         conn = DriverManager.getConnection("jdbc:sqlite:" + url)
+        conn.createStatement().use { stmt ->
+
+//            stmt.execute("PRAGMA synchronous = OFF ")
+//            stmt.execute("PRAGMA journal_mode=WAL")
+        }
+    }
+
+    fun <T> retryTransaction(action: () -> T, retries: Int = 10): T {
+        repeat(retries) { attempt ->
+            try {
+                return action()
+            } catch (e: SQLException) {
+                if (e.message?.contains("SQLITE_BUSY") == true) {
+                    println("Database is busy, retrying... (attempt ${attempt + 1})")
+                    Thread.sleep(100)
+                } else {
+                    throw e
+                }
+            }
+        }
+        throw SQLException("Failed after $retries attempts due to database being busy.")
     }
 
     private fun getLastInsertId():Int {
@@ -89,31 +111,37 @@ class DataBaseUtil(val url:String) {
         }
     }
 
-    fun insertAuthor(projectId:Int, name: String, email: String):Int {
-        val sql = "INSERT OR IGNORE INTO Authors(projectId, name, email) VALUES(?, ?, ?)"
-        conn.prepareStatement(sql).use { pstmt ->
-            pstmt.setInt(1, projectId)
-            pstmt.setString(2, name)
-            pstmt.setString(3, email)
-            if (pstmt.executeUpdate() > 0) return getLastInsertId()
+    fun insertAuthor(projectId:Int, name: String, email: String):String? {
+        val sql = "INSERT OR IGNORE INTO Authors(id, projectId, name, email) VALUES(?, ?, ?, ?)"
+        return retryTransaction({conn.prepareStatement(sql).use { pstmt ->
+            val uniqueId = UUID.randomUUID().toString()
+            pstmt.setString(1, uniqueId)
+            pstmt.setInt(2, projectId)
+            pstmt.setString(3, name)
+            pstmt.setString(4, email)
+            if (pstmt.executeUpdate() > 0) return@retryTransaction uniqueId
+            return@retryTransaction null
         }
-        return -1
+        })
     }
 
-    fun getAuthorId(projectId: Int, email: String): Int? {
+    fun getAuthorId(projectId: Int, email: String): String? {
         val sql = "SELECT id FROM Authors WHERE projectId = ? AND email = ?"
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setString(2, email)
-            return getIdExecute(pstmt)
+            pstmt.executeQuery().use { rs ->
+                if (rs.next()) return rs.getString(1)
+            }
         }
+        return null
     }
 
-    fun insertCommit(projectId:Int, authorId: Int, hash: String, date: Int, projectSize: Long, stability: Double, fileEntity: FileEntity):String {
-        val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date, projectSize, stability, filesAdded, filesDeleted, filesModified, linesAdded, linesDeleted, linesModified, changes) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    fun insertCommit(projectId:Int, authorId: String, hash: String, date: Int, projectSize: Long, stability: Double, fileEntity: FileEntity):String {
+        val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date, projectSize, stability, filesAdded, filesDeleted, filesModified, linesAdded, linesDeleted, linesModified, changes, changesSize) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING hash"
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
-            pstmt.setInt(2, authorId)
+            pstmt.setString(2, authorId)
             pstmt.setString(3, hash)
             pstmt.setInt(4, date)
             pstmt.setLong(5, projectSize)
@@ -125,10 +153,53 @@ class DataBaseUtil(val url:String) {
             pstmt.setInt(11, fileEntity.linesDeleted)
             pstmt.setInt(12, fileEntity.linesModified)
             pstmt.setInt(13, fileEntity.changes)
-            if (pstmt.executeUpdate() > 0) return getLastInsertStringId()
+            pstmt.setInt(14, fileEntity.changesSize)
+            pstmt.executeQuery().use { rs ->
+                if (rs.next()) {
+                    return rs.getString(1)
+                }
+            }
         }
         return ""
     }
+
+    fun getCommit(projectId: Int, hash: String): CommitEntity? {
+        val sql = """
+            SELECT c.*, a.email as authorEmail, a.name as authorName
+            FROM Commits c
+            JOIN Authors a ON a.id = c.authorId AND a.projectId = c.projectId
+            WHERE hash = ? and c.projectId = ?""".trimIndent()
+        conn.prepareStatement(sql).use { pstmt ->
+            pstmt.setString(1, hash)
+            pstmt.setInt(2, projectId)
+            pstmt.executeQuery().use { rs ->
+                if (rs.next()) {
+                    return CommitEntity(
+                        projectId = rs.getInt("projectId"),
+                        authorId = rs.getString("authorId"),
+                        authorName = rs.getString("authorName"),
+                        authorEmail = rs.getString("authorEmail"),
+                        hash = rs.getString("hash"),
+                        date = rs.getInt("date"),
+                        projectSize = rs.getLong("projectSize"),
+                        stability = rs.getDouble("stability"),
+                        fileEntity = FileEntity(
+                            fileAdded = rs.getInt("filesAdded"),
+                            fileDeleted = rs.getInt("filesDeleted"),
+                            fileModified = rs.getInt("filesModified"),
+                            linesAdded = rs.getInt("linesAdded"),
+                            linesDeleted = rs.getInt("linesDeleted"),
+                            linesModified = rs.getInt("linesModified"),
+                            changes = rs.getInt("changes"),
+                            changesSize = rs.getInt("changesSize")
+                        )
+                    )
+                }
+            }
+        }
+        return null
+    }
+
 
     fun getDeveloperInfo(projectId: Int, filePath: String) : Map<String, CommitSize>  {
         val commitSizeMap = mutableMapOf<String, CommitSize>()
@@ -217,7 +288,7 @@ class DataBaseUtil(val url:String) {
 
     fun insertFile(fileList: List<org.repodriller.scm.entities.FileEntity>) {
         val sql = "INSERT OR IGNORE INTO Files(projectId, filePath, hash, date) VALUES(?, ?, ?, ?)"
-        conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
+        retryTransaction({conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
             for (file in fileList) {
                 pstmt.setInt(1, file.projectId)
                 pstmt.setString(2, file.filePath)
@@ -226,7 +297,7 @@ class DataBaseUtil(val url:String) {
                 pstmt.addBatch()
             }
             pstmt.executeBatch()
-        }
+        }})
     }
 
     fun insertFile(file: org.repodriller.scm.entities.FileEntity):Int {
@@ -299,7 +370,7 @@ class DataBaseUtil(val url:String) {
         val sql = "INSERT OR IGNORE INTO Blames(projectId, authorId, blameFileId, blameHashes, lineIds, lineCounts, lineSize) VALUES(?, ?, ?, ?, ?, ?, ?)"
         conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
             pstmt.setInt(1, blameEntity.projectId)
-            pstmt.setInt(2, blameEntity.authorId)
+            pstmt.setString(2, blameEntity.authorId)
             pstmt.setInt(3, blameEntity.blameFileId)
             pstmt.setString(4, convertListToJson(blameEntity.blameHashes))
             pstmt.setString(5, convertListToJson(blameEntity.lineIds))
@@ -314,7 +385,7 @@ class DataBaseUtil(val url:String) {
         conn.prepareStatement(sql).use { pstmt ->
             for (blame in blameEntities) {
                 pstmt.setInt(1, blame.projectId)
-                pstmt.setInt(2, blame.authorId)
+                pstmt.setString(2, blame.authorId)
                 pstmt.setInt(3, blame.blameFileId)
                 pstmt.setString(4, convertListToJson(blame.blameHashes))
                 pstmt.setString(5, convertListToJson(blame.lineIds))
@@ -326,15 +397,15 @@ class DataBaseUtil(val url:String) {
         }
     }
 
-    fun getDevelopersByProjectId(projectId: Int): Map<String, Int> {
-        val developers = mutableMapOf<String, Int>()
+    fun getDevelopersByProjectId(projectId: Int): Map<String, String> {
+        val developers = mutableMapOf<String, String>()
         val sql = "SELECT id, email FROM Authors WHERE projectId = ?"
 
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
             val rs = pstmt.executeQuery()
             while (rs.next()) {
-                val id = rs.getInt("id")
+                val id = rs.getString("id")
                 val email = rs.getString("email")
                 developers.put(email, id)
             }
