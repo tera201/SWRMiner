@@ -22,7 +22,6 @@ class DataBaseUtil(val url:String) {
         }
         conn = DriverManager.getConnection("jdbc:sqlite:" + url)
         conn.createStatement().use { stmt ->
-
 //            stmt.execute("PRAGMA synchronous = OFF ")
 //            stmt.execute("PRAGMA journal_mode=WAL")
         }
@@ -139,7 +138,7 @@ class DataBaseUtil(val url:String) {
 
     fun insertCommit(projectId:Int, authorId: String, hash: String, date: Int, projectSize: Long, stability: Double, fileEntity: FileEntity):String {
         val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date, projectSize, stability, filesAdded, filesDeleted, filesModified, linesAdded, linesDeleted, linesModified, changes, changesSize) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING hash"
-        conn.prepareStatement(sql).use { pstmt ->
+        return retryTransaction({conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setString(2, authorId)
             pstmt.setString(3, hash)
@@ -156,11 +155,11 @@ class DataBaseUtil(val url:String) {
             pstmt.setInt(14, fileEntity.changesSize)
             pstmt.executeQuery().use { rs ->
                 if (rs.next()) {
-                    return rs.getString(1)
+                    return@retryTransaction rs.getString(1)
                 }
             }
         }
-        return ""
+        return@retryTransaction ""})
     }
 
     fun getCommit(projectId: Int, hash: String): CommitEntity? {
@@ -265,13 +264,13 @@ class DataBaseUtil(val url:String) {
 
     fun insertBlameFile(projectId: Int, filePath: String, fileHash: String):Int {
         val sql = "INSERT OR IGNORE INTO BlameFiles(projectId, filePath, fileHash) VALUES(?, ?, ?)"
-        conn.prepareStatement(sql).use { pstmt ->
+        return retryTransaction({conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setString(2, filePath)
             pstmt.setString(3, fileHash)
-            if (pstmt.executeUpdate() > 0) return getLastInsertId()
+            if (pstmt.executeUpdate() > 0) return@retryTransaction getLastInsertId()
         }
-        return -1
+        return@retryTransaction -1})
     }
 
     fun insertFile(projectId: Int, filePath: String, hash: String, date: Int):Int {
@@ -317,11 +316,11 @@ class DataBaseUtil(val url:String) {
         UPDATE BlameFiles SET lineSize = (SELECT SUM(lineSize) FROM Blames WHERE blameFileId = ? GROUP BY projectId AND blameFileId) WHERE id = ?
     """.trimIndent()
 
-        conn.prepareStatement(sqlUpdate).use { pstmt ->
+        retryTransaction({conn.prepareStatement(sqlUpdate).use { pstmt ->
             pstmt.setInt(1, blameFileId)
             pstmt.setInt(2, blameFileId)
             pstmt.executeUpdate()
-        }
+        }})
     }
 
     fun getBlameFileId(projectId: Int, filePath: String, fileHash: String):Int? {
@@ -382,19 +381,21 @@ class DataBaseUtil(val url:String) {
 
     fun insertBlame(blameEntities: List<BlameEntity>) {
         val sql = "INSERT OR IGNORE INTO Blames(projectId, authorId, blameFileId, blameHashes, lineIds, lineCounts, lineSize) VALUES(?, ?, ?, ?, ?, ?, ?)"
-        conn.prepareStatement(sql).use { pstmt ->
-            for (blame in blameEntities) {
-                pstmt.setInt(1, blame.projectId)
-                pstmt.setString(2, blame.authorId)
-                pstmt.setInt(3, blame.blameFileId)
-                pstmt.setString(4, convertListToJson(blame.blameHashes))
-                pstmt.setString(5, convertListToJson(blame.lineIds))
-                pstmt.setLong(6, blame.lineIds.size.toLong())
-                pstmt.setLong(7, blame.lineSize)
-                pstmt.addBatch()
+        retryTransaction({
+            conn.prepareStatement(sql).use { pstmt ->
+                for (blame in blameEntities) {
+                    pstmt.setInt(1, blame.projectId)
+                    pstmt.setString(2, blame.authorId)
+                    pstmt.setInt(3, blame.blameFileId)
+                    pstmt.setString(4, convertListToJson(blame.blameHashes))
+                    pstmt.setString(5, convertListToJson(blame.lineIds))
+                    pstmt.setLong(6, blame.lineIds.size.toLong())
+                    pstmt.setLong(7, blame.lineSize)
+                    pstmt.addBatch()
+                }
+                pstmt.executeBatch()
             }
-            pstmt.executeBatch()  // Выполнение пакетной вставки
-        }
+        })
     }
 
     fun getDevelopersByProjectId(projectId: Int): Map<String, String> {
@@ -413,7 +414,7 @@ class DataBaseUtil(val url:String) {
         return developers
     }
 
-    fun developerUpdateByBlameInfo(projectId: Int, developers: Map<String, DeveloperInfo>): Pair<Int, Long> {
+    fun developerUpdateByBlameInfo(projectId: Int, developers: Map<String, DeveloperInfo>) {
         val sql = """
         SELECT COUNT(b.lineCounts) AS lineCount, SUM(b.lineSize) AS lineSize, authors.email, string_agg(bf.filePath, ', ') as filePaths
         FROM Blames b
@@ -436,7 +437,6 @@ class DataBaseUtil(val url:String) {
                 developers.get(email)?.ownerForFiles?.addAll(filePaths)
             }
         }
-        return Pair(0, 0)
     }
 
 //    fun getBlameInfoByFilePattern(projectId: Int, filePathPattern: Int): Pair<Int, Long> {

@@ -1,8 +1,6 @@
 package org.repodriller.scm.entities;
 
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.EditList;
