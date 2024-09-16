@@ -44,7 +44,7 @@ fun createTables(conn: Connection) {
 
     val sqlCreateAuthors = """
         CREATE TABLE IF NOT EXISTS Authors (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             email TEXT NOT NULL,
             projectId INTEGER NOT NULL,
@@ -79,12 +79,22 @@ fun createTables(conn: Connection) {
         CREATE TABLE IF NOT EXISTS Files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             projectId INTEGER NOT NULL,
-            filePath TEXT NOT NULL,
+            filePathId INTEGER NOT NULL,
             hash TEXT,
             date INTEGER NOT NULL,
             FOREIGN KEY (projectId) REFERENCES Projects(id),
-            FOREIGN KEY (hash) REFERENCES Commits(hash),
-            UNIQUE (hash, projectId, filePath)
+            FOREIGN KEY (filePathId) REFERENCES FilePath(id),
+            FOREIGN KEY (hash) REFERENCES Commits(hash)
+        );
+    """.trimIndent()
+
+    val sqlCreateFilePath = """
+        CREATE TABLE IF NOT EXISTS FilePath (
+            id INTEGER PRIMARY KEY,
+            projectId INTEGER NOT NULL,
+            filePath TEXT NOT NULL,
+            FOREIGN KEY (projectId) REFERENCES Projects(id),
+            UNIQUE (projectId, filePath)
         );
     """.trimIndent()
 
@@ -112,12 +122,13 @@ fun createTables(conn: Connection) {
         CREATE TABLE IF NOT EXISTS BlameFiles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             projectId TEXT NOT NULL,
-            filePath TEXT NOT NULL,
+            filePathId TEXT NOT NULL,
             fileHash TEXT NOT NULL,
             lineSize LONG,
             FOREIGN KEY (projectId) REFERENCES Projects(id),
+            FOREIGN KEY (filePathId) REFERENCES FilePath(id),
             FOREIGN KEY (fileHash) REFERENCES Commits(hash),
-            UNIQUE (projectId, filePath, fileHash) 
+            UNIQUE (projectId, filePathId, fileHash) 
         );
     """.trimIndent()
 
@@ -157,7 +168,8 @@ fun createTables(conn: Connection) {
             stmt.execute(sqlCreateAuthors)
             stmt.execute(sqlCreateCommits)
             stmt.execute(sqlCreateFiles)
-            stmt.execute(sqlCreateChanges)
+            stmt.execute(sqlCreateFilePath)
+//            stmt.execute(sqlCreateChanges)
             stmt.execute(sqlCreateBlameFiles)
             stmt.execute(sqlCreateBlame)
             println("Tables have been created.")
@@ -173,6 +185,7 @@ fun dropTables(conn: Connection) {
     val sqlDropAuthors = "DROP TABLE IF EXISTS Authors"
     val sqlDropCommits = "DROP TABLE IF EXISTS Commits"
     val sqlDropFiles = "DROP TABLE IF EXISTS Files"
+    val sqlDropFilePath = "DROP TABLE IF EXISTS FilePath"
     val sqlDropChanges = "DROP TABLE IF EXISTS Changes"
     val sqlDropBlameFiles = "DROP TABLE IF EXISTS BlameFiles"
     val sqlDropBlames = "DROP TABLE IF EXISTS Blames"
@@ -183,7 +196,8 @@ fun dropTables(conn: Connection) {
             stmt.execute(sqlDropModels)
             stmt.execute(sqlDropAuthors)
             stmt.execute(sqlDropCommits)
-            stmt.execute(sqlDropChanges)
+            stmt.execute(sqlDropFilePath)
+//            stmt.execute(sqlDropChanges)
             stmt.execute(sqlDropBlames)
             stmt.execute(sqlDropFiles)
             stmt.execute(sqlDropBlameFiles)

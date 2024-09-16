@@ -16,7 +16,7 @@ import java.util.List;
 
 @Data
 public class DeveloperInfo {
-    private String id;
+    private long id;
     private final String name;
     private final String emailAddress;
     private final List<RevCommit> commits;
@@ -34,7 +34,7 @@ public class DeveloperInfo {
     public List<String> ownerForFiles;
 
     public DeveloperInfo(String name, String emailAddress) {
-        this(name, emailAddress, "");
+        this(name, emailAddress, -1);
     }
 
     public DeveloperInfo(CommitEntity commitEntity, RevCommit commit) {
@@ -55,7 +55,7 @@ public class DeveloperInfo {
         this.fileModified = commitEntity.getFileEntity().getFileModified();
     }
 
-    public DeveloperInfo(String name, String emailAddress, String id) {
+    public DeveloperInfo(String name, String emailAddress, long id) {
         this.id = id;
         this.name = name;
         this.emailAddress = emailAddress;

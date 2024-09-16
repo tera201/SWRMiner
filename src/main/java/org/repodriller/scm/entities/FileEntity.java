@@ -7,12 +7,14 @@ public class FileEntity {
 
 	public final int projectId;
 	public final String filePath;
+	public final Long filePathId;
 	public final String hash;
 	public final int date;
 
-	public FileEntity(int projectId, String filePath, String hash, int date) {
+	public FileEntity(int projectId, String filePath, Long filePathId, String hash, int date) {
 		this.projectId = projectId;
 		this.filePath = filePath;
+		this.filePathId = filePathId;
 		this.hash = hash;
 		this.date = date;
 	}

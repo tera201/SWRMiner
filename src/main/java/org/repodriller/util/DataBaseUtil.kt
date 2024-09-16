@@ -4,12 +4,16 @@ import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.repodriller.scm.entities.CommitSize
 import org.repodriller.scm.entities.DeveloperInfo
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.PreparedStatement
 import java.sql.SQLException
 import java.util.*
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 
 
 class DataBaseUtil(val url:String) {
@@ -24,6 +28,23 @@ class DataBaseUtil(val url:String) {
         conn.createStatement().use { stmt ->
 //            stmt.execute("PRAGMA synchronous = OFF ")
 //            stmt.execute("PRAGMA journal_mode=WAL")
+        }
+    }
+
+    fun compress(input: String): String {
+        val bos = ByteArrayOutputStream()
+        GZIPOutputStream(bos).use { gzip ->
+            gzip.write(input.toByteArray(Charsets.UTF_8))
+        }
+        return Base64.getEncoder().encodeToString(bos.toByteArray())
+    }
+
+    fun decompress(compressed: String): String {
+        val bytes = Base64.getDecoder().decode(compressed)
+        ByteArrayInputStream(bytes).use { bis ->
+            GZIPInputStream(bis).use { gzip ->
+                return gzip.bufferedReader(Charsets.UTF_8).readText()
+            }
         }
     }
 
@@ -110,11 +131,11 @@ class DataBaseUtil(val url:String) {
         }
     }
 
-    fun insertAuthor(projectId:Int, name: String, email: String):String? {
+    fun insertAuthor(projectId:Int, name: String, email: String):Long? {
         val sql = "INSERT OR IGNORE INTO Authors(id, projectId, name, email) VALUES(?, ?, ?, ?)"
         return retryTransaction({conn.prepareStatement(sql).use { pstmt ->
-            val uniqueId = UUID.randomUUID().toString()
-            pstmt.setString(1, uniqueId)
+            val uniqueId = UUID.randomUUID().mostSignificantBits
+            pstmt.setLong(1, uniqueId)
             pstmt.setInt(2, projectId)
             pstmt.setString(3, name)
             pstmt.setString(4, email)
@@ -124,23 +145,23 @@ class DataBaseUtil(val url:String) {
         })
     }
 
-    fun getAuthorId(projectId: Int, email: String): String? {
+    fun getAuthorId(projectId: Int, email: String): Long? {
         val sql = "SELECT id FROM Authors WHERE projectId = ? AND email = ?"
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setString(2, email)
             pstmt.executeQuery().use { rs ->
-                if (rs.next()) return rs.getString(1)
+                if (rs.next()) return rs.getLong(1)
             }
         }
         return null
     }
 
-    fun insertCommit(projectId:Int, authorId: String, hash: String, date: Int, projectSize: Long, stability: Double, fileEntity: FileEntity):String {
+    fun insertCommit(projectId:Int, authorId: Long, hash: String, date: Int, projectSize: Long, stability: Double, fileEntity: FileEntity):String {
         val sql = "INSERT OR IGNORE INTO Commits(projectId, authorId, hash, date, projectSize, stability, filesAdded, filesDeleted, filesModified, linesAdded, linesDeleted, linesModified, changes, changesSize) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING hash"
         return retryTransaction({conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
-            pstmt.setString(2, authorId)
+            pstmt.setLong(2, authorId)
             pstmt.setString(3, hash)
             pstmt.setInt(4, date)
             pstmt.setLong(5, projectSize)
@@ -175,7 +196,7 @@ class DataBaseUtil(val url:String) {
                 if (rs.next()) {
                     return CommitEntity(
                         projectId = rs.getInt("projectId"),
-                        authorId = rs.getString("authorId"),
+                        authorId = rs.getLong("authorId"),
                         authorName = rs.getString("authorName"),
                         authorEmail = rs.getString("authorEmail"),
                         hash = rs.getString("hash"),
@@ -206,9 +227,10 @@ class DataBaseUtil(val url:String) {
         SELECT c.*, a.email as authorEmail, a.name as authorName
         FROM Commits c
         JOIN Files f ON f.hash = c.hash AND f.projectId = c.projectId
+        JOIN FilePath fp ON f.filePathId = fp.id
         JOIN Authors a ON a.id = c.authorId AND a.projectId = c.projectId
         WHERE c.projectId = ?
-          AND f.filePath LIKE ?
+          AND fp.filePath LIKE ?
     """
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setIntOrNull(1, projectId)
@@ -233,9 +255,10 @@ class DataBaseUtil(val url:String) {
         SELECT c.*, a.email as authorEmail, a.name as authorName
         FROM Commits c
         JOIN Files f ON f.hash = c.hash AND f.projectId = c.projectId
+        JOIN FilePath fp ON f.filePathId = fp.id
         JOIN Authors a ON a.id = c.authorId AND a.projectId = c.projectId
         WHERE c.projectId = ?
-          AND f.filePath LIKE ?
+          AND fp.filePath LIKE ?
     """
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setIntOrNull(1, projectId)
@@ -262,22 +285,48 @@ class DataBaseUtil(val url:String) {
         }
     }
 
-    fun insertBlameFile(projectId: Int, filePath: String, fileHash: String):Int {
-        val sql = "INSERT OR IGNORE INTO BlameFiles(projectId, filePath, fileHash) VALUES(?, ?, ?)"
+    fun insertBlameFile(projectId: Int, filePathId: Long, fileHash: String):Int {
+        val sql = "INSERT OR IGNORE INTO BlameFiles(projectId, filePathId, fileHash) VALUES(?, ?, ?)"
         return retryTransaction({conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
-            pstmt.setString(2, filePath)
+            pstmt.setLong(2, filePathId)
             pstmt.setString(3, fileHash)
             if (pstmt.executeUpdate() > 0) return@retryTransaction getLastInsertId()
         }
         return@retryTransaction -1})
     }
 
-    fun insertFile(projectId: Int, filePath: String, hash: String, date: Int):Int {
-        val sql = "INSERT OR IGNORE INTO Files(projectId, filePath, hash, date) VALUES(?, ?, ?, ?)"
+    fun insertFilePath(projectId: Int, filePath: String):Long? {
+        val sql = "INSERT OR IGNORE INTO FilePath(id, projectId, filePath) VALUES(?, ?, ?)"
+        return retryTransaction({
+            conn.prepareStatement(sql).use { pstmt ->
+                val uniqueId = UUID.randomUUID().mostSignificantBits
+                pstmt.setLong(1, uniqueId)
+                pstmt.setInt(2, projectId)
+                pstmt.setString(3, filePath)
+                if (pstmt.executeUpdate() > 0) return@retryTransaction uniqueId
+            }
+            return@retryTransaction null
+        })
+    }
+
+    fun getFilePathId(projectId: Int, filePath: String): Long? {
+        val sql = "SELECT id FROM FilePath WHERE projectId = ? AND filePath = ?"
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
             pstmt.setString(2, filePath)
+            pstmt.executeQuery().use { rs ->
+                if (rs.next()) return rs.getLong(1)
+            }
+        }
+        return null
+    }
+
+    fun insertFile(projectId: Int, filePathId: Long, hash: String, date: Int):Int {
+        val sql = "INSERT OR IGNORE INTO Files(projectId, filePathId, hash, date) VALUES(?, ?, ?, ?)"
+        conn.prepareStatement(sql).use { pstmt ->
+            pstmt.setInt(1, projectId)
+            pstmt.setLong(2, filePathId)
             pstmt.setString(3, hash)
             pstmt.setInt(4, date)
             if (pstmt.executeUpdate() > 0) return getLastInsertId()
@@ -286,11 +335,11 @@ class DataBaseUtil(val url:String) {
     }
 
     fun insertFile(fileList: List<org.repodriller.scm.entities.FileEntity>) {
-        val sql = "INSERT OR IGNORE INTO Files(projectId, filePath, hash, date) VALUES(?, ?, ?, ?)"
+        val sql = "INSERT OR IGNORE INTO Files(projectId, filePathId, hash, date) VALUES(?, ?, ?, ?)"
         retryTransaction({conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
             for (file in fileList) {
                 pstmt.setInt(1, file.projectId)
-                pstmt.setString(2, file.filePath)
+                pstmt.setLong(2,  file.filePathId)
                 pstmt.setString(3, file.hash)
                 pstmt.setInt(4, file.date)
                 pstmt.addBatch()
@@ -300,10 +349,10 @@ class DataBaseUtil(val url:String) {
     }
 
     fun insertFile(file: org.repodriller.scm.entities.FileEntity):Int {
-        val sql = "INSERT OR IGNORE INTO Files(projectId, filePath, hash, date) VALUES(?, ?, ?, ?)"
+        val sql = "INSERT OR IGNORE INTO Files(projectId, filePathId, hash, date) VALUES(?, ?, ?, ?)"
         conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS).use { pstmt ->
             pstmt.setInt(1, file.projectId)
-            pstmt.setString(2, file.filePath)
+            pstmt.setLong(2, file.filePathId)
             pstmt.setString(3, file.hash)
             pstmt.setInt(4, file.date)
             if (pstmt.executeUpdate() > 0) return getLastInsertId()
@@ -323,21 +372,21 @@ class DataBaseUtil(val url:String) {
         }})
     }
 
-    fun getBlameFileId(projectId: Int, filePath: String, fileHash: String):Int? {
-        val sql = "SELECT * FROM BlameFiles WHERE projectId = ? AND filePath = ? AND fileHash = ?"
+    fun getBlameFileId(projectId: Int, filePathId: Long, fileHash: String):Int? {
+        val sql = "SELECT * FROM BlameFiles WHERE projectId = ? AND filePathId = ? AND fileHash = ?"
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
-            pstmt.setString(2, filePath)
+            pstmt.setLong(2, filePathId)
             pstmt.setString(3, fileHash)
             return getIdExecute(pstmt)
         }
     }
 
-    fun getLastFileHash(projectId: Int, filePath: String):String? {
-        val sql = "SELECT hash FROM Files WHERE projectId = ? AND filePath = ? ORDER BY date DESC LIMIT 1"
+    fun getLastFileHash(projectId: Int, filePathId: Long):String? {
+        val sql = "SELECT hash FROM Files WHERE projectId = ? AND filePathId = ? ORDER BY date DESC LIMIT 1"
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
-            pstmt.setString(2, filePath)
+            pstmt.setLong(2, filePathId)
             val rs = pstmt.executeQuery()
             while (rs.next()) {
                 val hash = rs.getString("hash")
@@ -347,15 +396,15 @@ class DataBaseUtil(val url:String) {
         return null
     }
 
-    fun getFirstAndLastHashForFile(projectId: Int, filePath: String):Pair<String, String>? {
+    fun getFirstAndLastHashForFile(projectId: Int, filePathId: Long):Pair<String, String>? {
         val sql = """
             SELECT MIN(hash) AS firstHash, MAX(hash) AS lastHash
             FROM Files
-            WHERE projectId = ? AND filePath = ?
+            WHERE projectId = ? AND filePathId = ?
         """.trimIndent()
         conn.prepareStatement(sql).use { pstmt ->
             pstmt.setInt(1, projectId)
-            pstmt.setString(2, filePath)
+            pstmt.setLong(2, filePathId)
             val rs = pstmt.executeQuery()
             return if (rs.next()) {
                 Pair(rs.getString("firstHash"), rs.getString("lastHash"))
@@ -387,7 +436,7 @@ class DataBaseUtil(val url:String) {
                     pstmt.setInt(1, blame.projectId)
                     pstmt.setString(2, blame.authorId)
                     pstmt.setInt(3, blame.blameFileId)
-                    pstmt.setString(4, convertListToJson(blame.blameHashes))
+                    pstmt.setString(4, compress(convertListToJson(blame.blameHashes)))
                     pstmt.setString(5, convertListToJson(blame.lineIds))
                     pstmt.setLong(6, blame.lineIds.size.toLong())
                     pstmt.setLong(7, blame.lineSize)
@@ -416,7 +465,7 @@ class DataBaseUtil(val url:String) {
 
     fun developerUpdateByBlameInfo(projectId: Int, developers: Map<String, DeveloperInfo>) {
         val sql = """
-        SELECT COUNT(b.lineCounts) AS lineCount, SUM(b.lineSize) AS lineSize, authors.email, string_agg(bf.filePath, ', ') as filePaths
+        SELECT COUNT(b.lineCounts) AS lineCount, SUM(b.lineSize) AS lineSize, authors.email, string_agg(bf.filePathId, ', ') as filePaths
         FROM Blames b
         JOIN BlameFiles bf ON b.blameFileId = bf.id
         JOIN Authors authors on authors.id = b.authorId

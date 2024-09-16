@@ -2,7 +2,7 @@ package org.repodriller.util
 
 data class CommitEntity(
     val projectId: Int,
-    val authorId: String,
+    val authorId: Long,
     val authorName: String,
     val authorEmail: String,
     val hash: String,
