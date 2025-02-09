@@ -16,11 +16,18 @@
 
 package org.repodriller.scm;
 
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Ref;
 import org.repodriller.domain.ChangeSet;
 import org.repodriller.domain.Commit;
 import org.repodriller.domain.Modification;
+import org.repodriller.scm.entities.BlameManager;
+import org.repodriller.scm.entities.BlamedLine;
+import org.repodriller.scm.entities.CommitSize;
+import org.repodriller.scm.entities.DeveloperInfo;
+import org.repodriller.scm.exceptions.CheckoutException;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +86,7 @@ public interface SCM {
 
 	List<Ref> getAllTags();
 
-	void checkoutTo(String branch);
+	void checkoutTo(String branch) throws CheckoutException;
 	String getCurrentBranchOrTagName();
 	
 	/* TODO A method named getCommitXYZ should return a Commit. */
@@ -94,13 +101,19 @@ public interface SCM {
 	 * 			priorCommit and laterCommit.
 	 */
 	List<Modification> getDiffBetweenCommits(String priorCommit, String laterCommit);
-	Map<String, CommitSize> repositorySize();
+	Map<String, CommitSize> repositoryAllSize();
+	Map<String, CommitSize> currentRepositorySize();
+	Map<String, CommitSize> repositorySize(String filePath);
+	Map<String, CommitSize> repositorySize(String branchOrTag, String filePath);
+	void dbPrepared() throws GitAPIException, IOException;
 
 	@Deprecated
 	String blame(String file, String currentCommit, Integer line);
 	List<BlamedLine> blame(String file);
 	BlameManager blameManager();
 	List<BlamedLine> blame(String file, String commitToBeBlamed, boolean priorCommit);
+	Map<String, DeveloperInfo> getDeveloperInfo() throws IOException, GitAPIException;
+	Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException;
 
 	/* Methods for interacting with current repo state. */
 

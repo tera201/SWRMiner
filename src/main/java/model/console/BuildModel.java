@@ -12,6 +12,8 @@ import org.repodriller.scm.GitRemoteRepository;
 import org.repodriller.scm.GitRepository;
 import org.repodriller.scm.SCMRepository;
 import org.repodriller.scm.SingleGitRemoteRepositoryBuilder;
+import org.repodriller.scm.exceptions.CheckoutException;
+import org.repodriller.util.DataBaseUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,7 +27,7 @@ public class BuildModel {
 
   private static Logger log = LogManager.getLogger(GitRepository.class);
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws CheckoutException, GitAPIException, IOException {
 
     String projectRoot = new File(".").getAbsolutePath();
 
@@ -34,16 +36,25 @@ public class BuildModel {
 
     new File(csvPath).mkdirs();
 
-    String gitUrl = "https://github.com/JetBrains/intellij-community.git";
+    String gitUrl = "https://github.com/arnohaase/a-foundation.git";
 
     BuildModel buildModel = new BuildModel();
 
 //    FileUtils.deleteDirectory(new File(tempDir));
 
-    SCMRepository repo = GitRemoteRepository
-            .hostedOn(gitUrl)
-            .inTempDir(tempDir)
-            .getAsSCMRepository();
+//    SCMRepository repo = GitRemoteRepository
+//            .hostedOn(gitUrl)
+//            .inTempDir(tempDir)
+//            .getAsSCMRepository();
+      SCMRepository repo = buildModel.getRepository(gitUrl, tempDir + "/a-foundation", tempDir + "/db");
+
+      long startTime = System.currentTimeMillis();
+      repo.getScm().dbPrepared();
+      long endTime = System.currentTimeMillis();
+      long executionTime = endTime - startTime;
+      System.out.println("dbPrepared выполнился за " + executionTime + " мс");
+//      SCMRepository repo = buildModel.createClone(gitUrl,tempDir + "/a-foundation", dataBaseUtil);
+      repo.getScm().getDeveloperInfo();
 
 //    SCMRepository repo = GitRemoteRepository
 //            .hostedOn(gitUrl)
@@ -51,22 +62,26 @@ public class BuildModel {
 //            .buildAsSCMRepository();
 
 
-    System.out.println(repo.getPath());
-    System.out.println(repo.getRepoName());
+//    System.out.println(repo.getPath());
+//    System.out.println(repo.getRepoName());
 
-    List<String> branches = buildModel.getBranches(repo);
-    List<String> tags = buildModel.getTags(repo);
+//    List<String> branches = buildModel.getBranches(repo);
+//    List<String> tags = buildModel.getTags(repo);
     //different checkout, work only after buildModel.checkout
-//    repo.getScm().checkout(tags.get(0));
+//    repo.getScm().checkoutTo(tags.get(8));
+//    System.out.println(repo.getScm().getCurrentBranchOrTagName());
+//    repo.getScm().checkoutTo(branches.get(0));
+//    System.out.println(repo.getScm().getCurrentBranchOrTagName());
 
 
     //work for tags
 //    buildModel.checkout(repo, branches.get(0));
 
-    System.out.println(branches);
-    System.out.println(buildModel.getTags(repo));
+//    System.out.println(branches);
+//    System.out.println(tags);
+//    System.out.println(buildModel.getTags(repo));
 //    buildModel.cleanData();
-    repo.getScm().delete();
+//    repo.getScm().delete();
 
 //    SCMRepository remoteGitRepo = GitRemoteRepository
 //            .hostedOn(gitUrl)
@@ -114,30 +129,42 @@ public class BuildModel {
             .hostedOn(gitUrl)
             .buildAsSCMRepository();
   }
-  public SCMRepository createClone(String gitUrl, String path) {
+  public SCMRepository createClone(String gitUrl, String path, String dataBaseDirPath) {
+    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository");
+    dataBaseUtil.create();
     return GitRemoteRepository
             .hostedOn(gitUrl)
             .inTempDir(path)
+            .dateBase(dataBaseUtil)
             .buildAsSCMRepository();
   }
-  public SCMRepository createClone(String gitUrl, String path, String username, String password) {
+  public SCMRepository createClone(String gitUrl, String path, String username, String password, String dataBaseDirPath) {
+    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository");
+    dataBaseUtil.create();
     return GitRemoteRepository
             .hostedOn(gitUrl)
             .inTempDir(path)
             .creds(username, password)
+            .dateBase(dataBaseUtil)
             .buildAsSCMRepository();
   }
 
-  public SCMRepository getRepository(String gitUrl, String path) {
+  public SCMRepository getRepository(String gitUrl, String path, String dataBaseDirPath) {
+    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository");
+    dataBaseUtil.create();
     return GitRemoteRepository
             .hostedOn(gitUrl)
             .inTempDir(path)
+            .dateBase(dataBaseUtil)
             .getAsSCMRepository();
   }
 
-  public SCMRepository getRepository(String projectPath) {
+  public SCMRepository getRepository(String projectPath, String dataBaseDirPath) {
+    DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository");
+    dataBaseUtil.create();
     return new SingleGitRemoteRepositoryBuilder()
             .inTempDir(projectPath)
+            .dateBase(dataBaseUtil)
             .getAsSCMRepository();
   }
 
@@ -160,7 +187,7 @@ public class BuildModel {
     return repo.getScm().getAllTags().stream().map(Ref::getName).collect(Collectors.toList());
   }
 
-  public void checkout(SCMRepository repo, String branch) {
+  public void checkout(SCMRepository repo, String branch) throws CheckoutException {
     repo.getScm().checkoutTo(branch);
   }
 

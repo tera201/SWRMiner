@@ -1,5 +1,6 @@
-package org.repodriller.scm;
+package org.repodriller.scm.entities;
 
+import lombok.Getter;
 import org.eclipse.jgit.revwalk.RevCommit;
 
 import java.util.HashMap;
@@ -7,8 +8,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+@Getter
 public class BlameFileInfo {
     private final String fileName;
+    private String authorName;
+    private String ownerName;
     private final Set<RevCommit> commits;
     private long lineCount;
     private long lineSize;
@@ -42,12 +46,6 @@ public class BlameFileInfo {
 
         return latestCommit;
     }
-
-    public String getFileName() {return fileName;}
-    public Set<RevCommit> getCommits() {return commits;}
-    public long getLineCount() {return lineCount;}
-    public long getLineSize() {return lineSize;}
-    public Map<String, BlameAuthorInfo> getAuthorInfos() {return authorInfos;}
 
     @Override
     public String toString() {

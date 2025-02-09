@@ -16,6 +16,7 @@
 
 package org.repodriller.scm;
 
+import kotlin.Pair;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,8 +37,10 @@ import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.repodriller.RepoDrillerException;
 import org.repodriller.domain.*;
 import org.repodriller.filter.diff.DiffFilter;
-import org.repodriller.util.PathUtils;
-import org.repodriller.util.RDFileUtils;
+import org.repodriller.scm.entities.*;
+import org.repodriller.scm.entities.FileEntity;
+import org.repodriller.scm.exceptions.CheckoutException;
+import org.repodriller.util.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -45,7 +48,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Everything you need to work with a Git-based source code repository.
@@ -70,11 +76,17 @@ public class GitRepository implements SCM {
 
 	private static Logger log = LogManager.getLogger(GitRepository.class);
 
+	private static final ConcurrentHashMap<String, DeveloperInfo> developersMap = new ConcurrentHashMap<>();
+	private static final ConcurrentHashMap<String, Long> filePathMap = new ConcurrentHashMap<>();
+
 	private String repoName = null;
 
 	/* User-specified. */
 	private String path = null;
 	private boolean firstParentOnly = false;
+	Map<ObjectId, Long> sizeCache = new ConcurrentHashMap<>();
+	protected DataBaseUtil dataBaseUtil;
+	protected Integer projectId;
 
 	/**
 	 * Intended for sub-classes.
@@ -92,6 +104,21 @@ public class GitRepository implements SCM {
 		log.debug("Creating a GitRepository from path " + path);
 		setPath(path);
 		setFirstParentOnly(firstParentOnly);
+		maxNumberFilesInACommit = checkMaxNumberOfFiles();
+		maxSizeOfDiff = checkMaxSizeOfDiff();
+
+		this.collectConfig = new CollectConfiguration().everything();
+	}
+
+	public GitRepository(String path, boolean firstParentOnly, DataBaseUtil dataBaseUtil) {
+		log.debug("Creating a GitRepository from path " + path);
+		this.dataBaseUtil = dataBaseUtil;
+		String[] splitPath = path.replace("\\", "/").split("/");
+		setRepoName(splitPath[splitPath.length - 1]);
+		Integer projectId = dataBaseUtil.getProjectId(repoName, path);
+		this.projectId = Objects.requireNonNullElseGet(projectId, () -> dataBaseUtil.insertProject(repoName, path));
+		setPath(path);
+		setFirstParentOnly(firstParentOnly);
 
 		maxNumberFilesInACommit = checkMaxNumberOfFiles();
 		maxSizeOfDiff = checkMaxSizeOfDiff();
@@ -103,8 +130,8 @@ public class GitRepository implements SCM {
 		return new GitRepository(path).info();
 	}
 
-	public static SCMRepository singleProject(String path, boolean singleParentOnly) {
-		return new GitRepository(path, singleParentOnly).info();
+	public static SCMRepository singleProject(String path, boolean singleParentOnly, DataBaseUtil dataBaseUtil) {
+		return new GitRepository(path, singleParentOnly, dataBaseUtil).info();
 	}
 
 	public static SCMRepository[] allProjectsIn(String path) {
@@ -115,7 +142,7 @@ public class GitRepository implements SCM {
 		List<SCMRepository> repos = new ArrayList<>();
 
 		for (String dir : RDFileUtils.getAllDirsIn(path)) {
-			repos.add(singleProject(dir, singleParentOnly));
+			repos.add(singleProject(dir, singleParentOnly, null));
 		}
 
 		return repos.toArray(new SCMRepository[repos.size()]);
@@ -246,7 +273,7 @@ public class GitRepository implements SCM {
 			revWalk = new RevWalk(git.getRepository());
 			revWalk.setRevFilter(new FirstParentFilter());
 			revWalk.sort(RevSort.TOPO);
-			Ref headRef = git.getRepository().getRef(Constants.HEAD);  /* TODO Deprecated. */
+			Ref headRef = git.getRepository().findRef(Constants.HEAD);
 			RevCommit headCommit = revWalk.parseCommit(headRef.getObjectId());
 			revWalk.markStart(headCommit);
 			for (RevCommit revCommit : revWalk) {
@@ -364,11 +391,10 @@ public class GitRepository implements SCM {
 			return new HashSet<>();
 
 		List<Ref> gitBranches = git.branchList().setContains(hash).call();
-		Set<String> mappedBranches = gitBranches.stream()
+		return gitBranches.stream()
 				.map(
 					  (ref) -> ref.getName().substring(ref.getName().lastIndexOf("/") + 1))
 				.collect(Collectors.toSet());
-		return mappedBranches;
 	}
 	@Override
 	public List<Ref> getAllBranches() {
@@ -390,23 +416,32 @@ public class GitRepository implements SCM {
 	}
 
 	@Override
-	public void checkoutTo(String branch) {
+	public void checkoutTo(String branch) throws CheckoutException {
 		try (Git git = openRepository()) {
-			if (git.getRepository().isBare()) throw new RuntimeException("error repo is bare");
+			if (git.getRepository().isBare()) throw new CheckoutException("error repo is bare");
+
+			if (git.getRepository().findRef(branch) == null) {
+				throw new CheckoutException("Branch does not exist: " + branch);
+			}
+
+			Status status = git.status().call();
+			if (status.hasUncommittedChanges()) {
+				throw new CheckoutException("There are uncommitted changes in the working directory");
+			}
+
 			git.checkout().setName(branch).call();
-		} catch (Exception e) {
-			throw new RuntimeException("error getting tags in " + path,
+		} catch (IOException | GitAPIException e) {
+			throw new CheckoutException("Error checking out to " + branch,
 					e);
 		}
-	}
+    }
 
 	public String getCurrentBranchOrTagName() {
 		try (Git git = openRepository()) {
-			Ref branchRef = git.getRepository().exactRef("HEAD").getTarget();
-			String tagName = "refs/tags/" + git.describe().call();
-			if (getAllTags().stream().map(Ref::getName).toList().contains(tagName))
-				return tagName;
-			return branchRef.getName();
+			ObjectId head = git.getRepository().resolve("HEAD");
+			return git.getRepository().getAllRefsByPeeledObjectId().get(head).stream()
+					.map(Ref::getName)
+					.distinct().filter(it -> it.startsWith("refs/")).findFirst().orElse(head.getName());
 		}  catch (Exception e) {
 			throw new RuntimeException("Error getting branch name", e);
 		}
@@ -583,30 +618,29 @@ public class GitRepository implements SCM {
 	}
 
 	@Override
-	public Map<String, CommitSize> repositorySize() {
-		try (Git git = openRepository()) {
-			Iterable<RevCommit> commits = git.log().all().call();
-			Repository repository = git.getRepository();
-			Map<String, CommitSize> commitSizeMap = new HashMap<>();
+	public Map<String, CommitSize> repositoryAllSize() {
+		return repositorySize(true, null, null);
+	}
 
-			for (RevCommit commit : commits) {
-				CommitSize commitSize = new CommitSize(commit.getName(), commit.getCommitTime());
-				TreeWalk treeWalk = new TreeWalk(repository);
-				treeWalk.addTree(commit.getTree());
-				treeWalk.setRecursive(true);
-				try {
-					while (treeWalk.next()) {
-						ObjectId objectId = treeWalk.getObjectId(0);
-						commitSize.addFile(treeWalk.getPathString(), repository.getObjectDatabase().open(objectId).getSize());
-					}
-				} catch (IOException ignored) {}
-				commitSizeMap.put(commit.getName(), commitSize);
-			}
-			return commitSizeMap;
+	@Override
+	public Map<String, CommitSize> currentRepositorySize() {
+		return repositorySize(null, null);
+	}
 
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+	@Override
+	public Map<String, CommitSize> repositorySize(String filePath) {
+		return repositorySize(false, null, filePath);
+	}
+
+	@Override
+	public Map<String, CommitSize> repositorySize(String branchOrTag, String filePath) {
+		return repositorySize(false, branchOrTag, filePath);
+	}
+
+	private Map<String, CommitSize> repositorySize(Boolean all, String branchOrTag, String filePath) {
+			filePath = Objects.equals(filePath, path) ? "" : filePath;
+			String localPath = filePath != null && filePath.startsWith(path) ? filePath.substring(path.length() + 1).replace("\\", "/") : "";
+        return dataBaseUtil.getCommitSizeMap(projectId, localPath);
 	}
 
 	@Override
@@ -621,7 +655,7 @@ public class GitRepository implements SCM {
 
 	public List<BlamedLine> blame(String file) {
 		try (Git git = openRepository()) {
-			BlameResult blameResult = git.blame().setFilePath(file).setFollowFileRenames(true).call();
+			BlameResult blameResult = git.blame().setFilePath(file.replace("\\", "/")).setFollowFileRenames(true).call();
 			if (blameResult != null) {
 				int rows = blameResult.getResultContents().size();
 				List<BlamedLine> result = new ArrayList<>();
@@ -635,7 +669,10 @@ public class GitRepository implements SCM {
 
 				return result;
 			} else {
-				throw new RuntimeException("BlameResult not found.");
+				// TODO create notification
+				System.out.println("BlameResult not found. File: " + file);
+				return new ArrayList<>();
+//				throw new RuntimeException("BlameResult not found. File: " + file);
 			}
 
 		} catch (Exception e) {
@@ -643,24 +680,28 @@ public class GitRepository implements SCM {
 		}
 	}
 
+	@Override
 	public BlameManager blameManager() {
 		try (Git git = openRepository()) {
 			Map<String, BlameFileInfo> fileMap = new HashMap<>();
 
 			for (RepositoryFile file : files()) {
-				String localFilePath = file.getFile().getPath().substring(path.length() + 1);
+				String localFilePath = file.getFile().getPath().substring(path.length() + 1).replace("\\", "/");
 				BlameResult blameResult = git.blame().setFilePath(localFilePath).setFollowFileRenames(true).call();
 
 				if (blameResult != null) {
 					int rows = blameResult.getResultContents().size();
 					for (int i = 0; i < rows; i++) {
-						String author = blameResult.getSourceCommitter(i).getName();
+						String author = blameResult.getSourceAuthor(i).getName();
 						String fileName = blameResult.getSourcePath(i);
-						BlameAuthorInfo blameAuthorInfo = new BlameAuthorInfo(author, Collections.singleton(blameResult.getSourceCommit(i)), 1, blameResult.getResultContents().getString(i).getBytes().length);
+						RevCommit commit = blameResult.getSourceCommit(i);
+						BlameAuthorInfo blameAuthorInfo = new BlameAuthorInfo(author, Collections.singleton(commit), 1, blameResult.getResultContents().getString(i).getBytes().length);
 						fileMap.computeIfAbsent(blameResult.getSourcePath(i), k -> new BlameFileInfo(fileName)).add(blameAuthorInfo);
 					}
 				} else {
-					throw new RuntimeException("BlameResult not found.");
+					// TODO create notification
+					System.out.println("BlameResult not found. File: " + file + " localFilePath: " + localFilePath);
+					//	throw new RuntimeException("BlameResult not found. File: " + file + " localFilePath: " + localFilePath);
 				}
 			}
 			return new BlameManager(fileMap, repoName);
@@ -680,8 +721,7 @@ public class GitRepository implements SCM {
 				gitCommitToBeBlamed = git.getRepository().resolve(commitToBeBlamed);
 			}
 
-			BlameResult blameResult = git.blame().setFilePath(file).setStartCommit(gitCommitToBeBlamed).setFollowFileRenames(true).call();
-			git.close();
+			BlameResult blameResult = git.blame().setFilePath(file.replace("\\", "/")).setStartCommit(gitCommitToBeBlamed).setFollowFileRenames(true).call();
 			if (blameResult != null) {
 				int rows = blameResult.getResultContents().size();
 				List<BlamedLine> result = new ArrayList<>();
@@ -695,12 +735,165 @@ public class GitRepository implements SCM {
 
 				return result;
 			} else {
-				throw new RuntimeException("BlameResult not found.");
+				// TODO create notification
+				System.out.println("BlameResult not found. File: " + file);
+				return new ArrayList<>();
 			}
 
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	public Map<String, DeveloperInfo> getDeveloperInfo() throws IOException, GitAPIException {
+		return getDeveloperInfo(null);
+	}
+
+	public void dbPrepared() {
+		ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		List<Future<?>> futures = new ArrayList<>();
+		try (Git git = openRepository()) {
+
+			List<RevCommit> commits = StreamSupport.stream(git.log().call().spliterator(), true)
+					.filter(commit -> !dataBaseUtil.isCommitExist(commit.getName()))
+					.toList();
+
+			ConcurrentHashMap<String, Long> authorIdCache = new ConcurrentHashMap<>();
+
+			for (int i = 0; i < commits.size(); i++) {
+				final RevCommit commit = commits.get(i);
+
+				Future<?> future = executor.submit(() -> {
+					try {
+						DataBaseUtil dataBaseUtil1 = new DataBaseUtil(dataBaseUtil.getUrl());
+						List<org.repodriller.scm.entities.FileEntity> fileList = new ArrayList<>();
+						PersonIdent author = commit.getAuthorIdent();
+						Long authorId = authorIdCache.computeIfAbsent(author.getEmailAddress(), e -> {
+							Long id = dataBaseUtil.getAuthorId(projectId, e);
+							return id != null ? id : dataBaseUtil1.insertAuthor(projectId, author.getName(), e);
+						});
+						DeveloperInfo dev = developersMap.computeIfAbsent(author.getEmailAddress(), k -> new DeveloperInfo(author.getName(), k, authorId));
+						dev.addCommit(commit);
+						Map<String, org.repodriller.util.FileEntity> paths = GitRepositoryUtil.getCommitsFiles(commit, git, dev);
+						paths.keySet().forEach(it -> filePathMap.computeIfAbsent(it, k -> {
+							Long id = dataBaseUtil.getFilePathId(projectId, k);
+							return id != null ? id : dataBaseUtil1.insertFilePath(projectId, k);
+						}));
+						double commitStability = CommitStabilityAnalyzer.analyzeCommit(git, commits, commit, commits.indexOf(commit));
+						long commitSize = GitRepositoryUtil.processCommitSize(commit, git);
+						org.repodriller.util.FileEntity fileMergedEntity = paths.values().stream().reduce(new org.repodriller.util.FileEntity(0, 0, 0, 0, 0, 0, 0, 0), (acc, fileEntity) -> {
+							acc.add(fileEntity);
+							return acc;
+						});
+						dataBaseUtil1.insertCommit(projectId, authorId, commit.getName(), commit.getCommitTime(), commitSize, commitStability, fileMergedEntity);
+						paths.keySet().forEach(it -> fileList.add(new org.repodriller.scm.entities.FileEntity(projectId, it, filePathMap.get(it), commit.getName(), commit.getCommitTime())));
+						dataBaseUtil1.insertFile(fileList);
+						dataBaseUtil1.closeConnection();
+					} catch (Exception e) {
+						System.err.println("Error processing commit " + commit.getName() + ": " + e.getMessage());
+					}
+				});
+				futures.add(future);
+			}
+
+			for (Future<?> f : futures) {
+				f.get();
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		} finally {
+			executor.shutdown();
+		}
+	}
+
+	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
+		try (Git git = openRepository()) {
+			long startTime = System.currentTimeMillis();
+
+			nodePath = Objects.equals(nodePath, path) ? null : nodePath;
+			String localPath = nodePath != null && nodePath.startsWith(path) ? nodePath.substring(path.length() + 1).replace("\\", "/") : nodePath;
+			Iterable<RevCommit> commits = localPath != null ? git.log().addPath(localPath).call() : git.log().call();
+			ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+			List<Future<?>> futures = new ArrayList<>();
+
+			System.out.println("pre processDeveloperInfo выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
+
+			startTime = System.currentTimeMillis();
+
+			for (RevCommit commit : commits) {
+				// Submitting tasks to the thread pool
+				Future<?> future = executorService.submit(() -> {
+					DataBaseUtil dataBaseUtil1 = new DataBaseUtil(dataBaseUtil.getUrl());
+					CommitEntity commitEntity = dataBaseUtil1.getCommit(projectId, commit.getName());
+					DeveloperInfo dev = developersMap.computeIfAbsent(commitEntity.getAuthorEmail(), k -> new DeveloperInfo(commitEntity, commit));
+					dev.updateByCommit(commitEntity, commit);
+					dataBaseUtil1.closeConnection();
+				});
+				futures.add(future);
+			}
+
+			for (Future<?> future : futures) {
+				try {
+					future.get();  // Catch exceptions if they occur during task execution
+				} catch (InterruptedException | ExecutionException e) {
+					e.printStackTrace();  // Logging or other error handling
+				}
+			}
+			System.out.println("processDeveloperInfo выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
+
+			futures.clear();
+
+			startTime = System.currentTimeMillis();
+
+			ObjectId head = git.getRepository().resolve(Constants.HEAD);
+			String finalNodePath = nodePath;
+			Stream<String> fileStream = files().stream().parallel().filter(it -> ((finalNodePath == null || it.getFile().getPath().startsWith(finalNodePath)) && !it.getFile().getPath().endsWith(".DS_Store")))
+					.map(it -> it.getFile().getPath().substring(path.length() + 1).replace("\\", "/")).filter(filePathMap.keySet()::contains);
+			Stream<Pair<String, String>> fileHashes = fileStream.parallel().map(it -> new Pair<>(it, head.getName())).filter(it -> dataBaseUtil.getBlameFileId(projectId, filePathMap.get(it.getFirst()), it.getSecond()) == null);
+			Stream<Pair<String, Integer>> fileAndBlameHashes = fileHashes.parallel().map(it -> new Pair<>(it.getFirst(), dataBaseUtil.insertBlameFile(projectId, filePathMap.get(it.getFirst()), it.getSecond())));
+			Map<String, String> devs = dataBaseUtil.getDevelopersByProjectId(projectId);
+
+			System.out.println("getDevelopersByProjectId выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
+
+			startTime = System.currentTimeMillis();
+			for (Pair<String, Integer> filePair : fileAndBlameHashes.collect(Collectors.toSet())) {
+				Future<?> future = executorService.submit(() -> {
+					DataBaseUtil dataBaseUtil1 = new DataBaseUtil(dataBaseUtil.getUrl());
+                    BlameResult blameResult = null;
+                    try {
+                        blameResult = git.blame().setFilePath(filePair.getFirst()).setStartCommit(head).call();
+                    } catch (GitAPIException e) {
+                        throw new RuntimeException(e);
+                    }
+                    if (blameResult != null) {
+						GitRepositoryUtil.updateFileOwnerBasedOnBlame(blameResult, devs, dataBaseUtil1, projectId, filePair.getSecond(), head.getName());
+						dataBaseUtil1.updateBlameFileSize(filePair.getSecond());
+						dataBaseUtil1.closeConnection();
+					}
+                });
+				futures.add(future);
+			}
+			for (Future<?> future : futures) {
+				try {
+					future.get();  // Catch exceptions if they occur during task execution
+				} catch (InterruptedException | ExecutionException e) {
+					e.printStackTrace();  // Logging or other error handling
+				}
+			}
+			System.out.println("updateFileOwnerBasedOnBlame выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
+			dataBaseUtil.developerUpdateByBlameInfo(projectId, developersMap);
+			executorService.shutdown();
+		}
+        return developersMap;
+	}
+
+	private void processDeveloperInfo(RevCommit commit, Git git, ConcurrentHashMap<String, DeveloperInfo> developers) {
+		try {
+			String email = commit.getAuthorIdent().getEmailAddress();
+			DeveloperInfo dev = developers.computeIfAbsent(email, k -> new DeveloperInfo(commit.getAuthorIdent().getName(), email));
+			dev.addCommit(commit);
+			GitRepositoryUtil.analyzeCommit(commit, git, dev);
+		} catch (IOException ignored) {}
 	}
 
 	public Integer getMaxNumberFilesInACommit() {

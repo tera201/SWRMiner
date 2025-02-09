@@ -1,5 +1,8 @@
-package org.repodriller.scm;
+package org.repodriller.scm.entities;
 
+import lombok.Getter;
+
+@Getter
 public class BlamedLine {
 
 	private final int lineNumber;
@@ -14,26 +17,6 @@ public class BlamedLine {
 		this.author = author;
 		this.committer = committer;
 		this.commit = commit;
-	}
-
-	public int getLineNumber() {
-		return lineNumber;
-	}
-
-	public String getLine() {
-		return line;
-	}
-
-	public String getAuthor() {
-		return author;
-	}
-
-	public String getCommitter() {
-		return committer;
-	}
-
-	public String getCommit() {
-		return commit;
 	}
 
 	@Override
@@ -87,7 +70,4 @@ public class BlamedLine {
 			return false;
 		return true;
 	}
-
-	
-	
 }

@@ -1,5 +1,5 @@
 plugins {
-    java
+    kotlin("jvm") version "1.8.20"
 }
 
 java {
@@ -22,6 +22,8 @@ repositories {
 
 dependencies {
     implementation("commons-io:commons-io:2.8.0")
+    compileOnly("org.projectlombok:lombok:1.18.30")
+    annotationProcessor("org.projectlombok:lombok:1.18.30")
     implementation("org.apache.commons:commons-lang3:3.3.2")
     implementation("commons-codec:commons-codec:1.16.0")
     implementation("org.apache.httpcomponents:httpclient:4.5.14")
@@ -35,4 +37,7 @@ dependencies {
     implementation("org.slf4j:slf4j-api:1.7.2")
     implementation("org.slf4j:slf4j-simple:1.7.2")
     implementation("org.tmatesoft.svnkit:svnkit:1.8.10")
+    implementation("org.xerial:sqlite-jdbc:3.45.3.0")
+    implementation("com.fasterxml.jackson.core:jackson-core:2.15.1")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.1")
 }

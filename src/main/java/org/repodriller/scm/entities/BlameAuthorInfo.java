@@ -1,10 +1,12 @@
-package org.repodriller.scm;
+package org.repodriller.scm.entities;
 
+import lombok.Getter;
 import org.eclipse.jgit.revwalk.RevCommit;
 
 import java.util.HashSet;
 import java.util.Set;
 
+@Getter
 public class BlameAuthorInfo {
     private String author;
     private Set<RevCommit> commits;
@@ -34,17 +36,6 @@ public class BlameAuthorInfo {
     public void setAuthor(String author) {
         this.author = author;
     };
-
-    public String getAuthor() {return author;}
-    public Set<RevCommit> getCommits() {
-        return commits;
-    }
-    public long getLineCount() {
-        return lineCount;
-    }
-    public long getLineSize() {
-        return lineSize;
-    }
 
     @Override
     public String toString() {
