@@ -30,9 +30,8 @@ public class BuildModel {
   public static void main(String[] args) throws CheckoutException, GitAPIException, IOException {
 
     String projectRoot = new File(".").getAbsolutePath();
-
     String csvPath = projectRoot.replace(".", "csv-generated");
-    String tempDir = projectRoot.replace(".", "clonnedGit");
+    String tempDir = projectRoot.replace(".", "clonedGit");
 
     new File(csvPath).mkdirs();
 
@@ -40,95 +39,23 @@ public class BuildModel {
 
     BuildModel buildModel = new BuildModel();
 
-//    FileUtils.deleteDirectory(new File(tempDir));
+    SCMRepository repo = buildModel.getRepository(gitUrl, tempDir + "/a-foundation", tempDir + "/db");
 
-//    SCMRepository repo = GitRemoteRepository
-//            .hostedOn(gitUrl)
-//            .inTempDir(tempDir)
-//            .getAsSCMRepository();
-      SCMRepository repo = buildModel.getRepository(gitUrl, tempDir + "/a-foundation", tempDir + "/db");
+    long startTime = System.currentTimeMillis();
+    repo.getScm().dbPrepared();
+    long endTime = System.currentTimeMillis();
+    long executionTime = endTime - startTime;
+    System.out.println("dbPrepared executed in " + executionTime + " ms");
 
-      long startTime = System.currentTimeMillis();
-      repo.getScm().dbPrepared();
-      long endTime = System.currentTimeMillis();
-      long executionTime = endTime - startTime;
-      System.out.println("dbPrepared выполнился за " + executionTime + " мс");
-//      SCMRepository repo = buildModel.createClone(gitUrl,tempDir + "/a-foundation", dataBaseUtil);
-      repo.getScm().getDeveloperInfo();
-
-//    SCMRepository repo = GitRemoteRepository
-//            .hostedOn(gitUrl)
-//            .inTempDir(tempDir)
-//            .buildAsSCMRepository();
-
-
-//    System.out.println(repo.getPath());
-//    System.out.println(repo.getRepoName());
-
-//    List<String> branches = buildModel.getBranches(repo);
-//    List<String> tags = buildModel.getTags(repo);
-    //different checkout, work only after buildModel.checkout
-//    repo.getScm().checkoutTo(tags.get(8));
-//    System.out.println(repo.getScm().getCurrentBranchOrTagName());
-//    repo.getScm().checkoutTo(branches.get(0));
-//    System.out.println(repo.getScm().getCurrentBranchOrTagName());
-
-
-    //work for tags
-//    buildModel.checkout(repo, branches.get(0));
-
-//    System.out.println(branches);
-//    System.out.println(tags);
-//    System.out.println(buildModel.getTags(repo));
-//    buildModel.cleanData();
-//    repo.getScm().delete();
-
-//    SCMRepository remoteGitRepo = GitRemoteRepository
-//            .hostedOn(gitUrl)
-//            .inTempDir(tempDir)
-//          .asBareRepos()
-//            .buildAsSCMRepository();
-
-    //
-    // Проход по репозиторию для сбора информации:
-    // какой автор сколько сделал изменений в программе.
-    //
-//    collectAuthorChanges(csvPath, remoteGitRepo);
-
-    //
-    // Проход по репозиторию для сбора информации:
-    // какой автор какие файлы создавал.
-    //
-//    FileCreatorVisitor fileCreateVisitor = new FileCreatorVisitor();
-//    new RepositoryMining()
-//            .in(remoteGitRepo)
-////            .setRepoTmpDir(new File(tempDir).toPath())
-//            .visitorsAreThreadSafe(true)
-//            .withThreads(6)
-//            .through(Commits.all())
-//            .visitorsChangeRepoState(false)
-//            .process(fileCreateVisitor,
-//                    new CSVFile(csvPath + "/junit4-author-files-created.csv"))
-//            .mine();
-
-    CSVFile csvByName = new CSVFile(
-            csvPath + "/junit4-author-files-created-count.csv",
-            new String[]{"Developer", "create-files"});
-//    fileCreateVisitor.fileCreatorMap.forEach(
-//            (developer, files) -> csvByName.write(developer, files.size())
-//    );
-
-//    fileCreateVisitor.fileCreatorMap.entrySet()
-//            .stream()
-//            .sorted(comparingInt(entry -> entry.getValue().size()))
-//            .forEach(e -> csvByName.write(e.getKey(), e.getValue().size()));
+    repo.getScm().getDeveloperInfo();
   }
-  public SCMRepository createClone(String gitUrl) {
 
+  public SCMRepository createClone(String gitUrl) {
     return GitRemoteRepository
             .hostedOn(gitUrl)
             .buildAsSCMRepository();
   }
+
   public SCMRepository createClone(String gitUrl, String path, String dataBaseDirPath) {
     DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository");
     dataBaseUtil.create();
@@ -138,6 +65,7 @@ public class BuildModel {
             .dateBase(dataBaseUtil)
             .buildAsSCMRepository();
   }
+
   public SCMRepository createClone(String gitUrl, String path, String username, String password, String dataBaseDirPath) {
     DataBaseUtil dataBaseUtil = new DataBaseUtil(dataBaseDirPath + "/repository");
     dataBaseUtil.create();
@@ -173,14 +101,13 @@ public class BuildModel {
   }
 
   public GitRemoteRepository createRepo(String gitUrl) throws GitAPIException {
-
     return GitRemoteRepository
             .hostedOn(gitUrl)
             .build();
   }
 
   public List<String> getBranches(SCMRepository repo) {
-      return repo.getScm().getAllBranches().stream().map(Ref::getName).collect(Collectors.toList());
+    return repo.getScm().getAllBranches().stream().map(Ref::getName).collect(Collectors.toList());
   }
 
   public List<String> getTags(SCMRepository repo) {
@@ -191,7 +118,7 @@ public class BuildModel {
     repo.getScm().checkoutTo(branch);
   }
 
-    public void collectAuthorChanges(SCMRepository remoteGitRepo) {
+  public void collectAuthorChanges(SCMRepository remoteGitRepo) {
     String csvPath = System.getProperty("user.dir") + "/analyseGit";
     FileCreatorVisitor fileCreateVisitor = new FileCreatorVisitor();
     new RepositoryMining()
@@ -216,7 +143,7 @@ public class BuildModel {
 
   public void cleanData() {
     String csvPath = System.getProperty("user.dir") + "/analyseGit";
-    String gitPath = System.getProperty("user.dir") + "/clonnedGit";
+    String gitPath = System.getProperty("user.dir") + "/clonedGit";
     try {
       FileUtils.deleteDirectory(new File(csvPath));
       FileUtils.deleteDirectory(new File(gitPath));
@@ -227,7 +154,7 @@ public class BuildModel {
 
   public void removeRepo() {
     String csvPath = System.getProperty("user.dir") + "/analyseGit";
-    String gitPath = System.getProperty("user.dir") + "/clonnedGit";
+    String gitPath = System.getProperty("user.dir") + "/clonedGit";
     try {
       FileUtils.deleteDirectory(new File(csvPath));
       FileUtils.deleteDirectory(new File(gitPath));
@@ -245,15 +172,15 @@ public class BuildModel {
             .process(visitor)
             .mine();
 
-    // Записываем в файл список пар: <автор, количество-изменений>
-    // отсортированный по фамилиям авторов.
+    // Write to file a list of pairs: <author, number-of-changes>
+    // sorted by author names.
     CSVFile csvByName = new CSVFile(
             csvPath + "/junit4-authors-by-name.csv",
             new String[]{"developer", "changes"});
     visitor.devs.forEach((developer, count) -> csvByName.write(developer, count));
 
-    // Записываем в файл список пар: <автор, количество-изменений>
-    // отсортированный по фамилиям авторов.
+    // Write to file a list of pairs: <author, number-of-changes>
+    // sorted by the number of changes.
     CSVFile csvByChanges = new CSVFile(
             csvPath + "/junit4-by-changes.csv",
             new String[]{"developer", "changes"});
