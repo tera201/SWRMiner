@@ -20,5 +20,5 @@ This project is licensed under the **Apache 2.0 License**, following the origina
 ## Credits
 
 - Original RepoDriller: [Maurício Aniche](https://github.com/mauricioaniche/repodriller)
-- Modifications and SQLite support: [Roman Naryshkin]
+- Modifications and SQLite support: [Roman Naryshkin](https://github.com/tera201)
 
