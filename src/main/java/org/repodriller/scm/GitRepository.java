@@ -38,7 +38,6 @@ import org.repodriller.RepoDrillerException;
 import org.repodriller.domain.*;
 import org.repodriller.filter.diff.DiffFilter;
 import org.repodriller.scm.entities.*;
-import org.repodriller.scm.entities.FileEntity;
 import org.repodriller.scm.exceptions.CheckoutException;
 import org.repodriller.util.*;
 
@@ -808,17 +807,12 @@ public class GitRepository implements SCM {
 
 	public Map<String, DeveloperInfo> getDeveloperInfo(String nodePath) throws IOException, GitAPIException {
 		try (Git git = openRepository()) {
-			long startTime = System.currentTimeMillis();
 
 			nodePath = Objects.equals(nodePath, path) ? null : nodePath;
 			String localPath = nodePath != null && nodePath.startsWith(path) ? nodePath.substring(path.length() + 1).replace("\\", "/") : nodePath;
 			Iterable<RevCommit> commits = localPath != null ? git.log().addPath(localPath).call() : git.log().call();
 			ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 			List<Future<?>> futures = new ArrayList<>();
-
-			System.out.println("pre processDeveloperInfo выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
-
-			startTime = System.currentTimeMillis();
 
 			for (RevCommit commit : commits) {
 				// Submitting tasks to the thread pool
@@ -839,11 +833,8 @@ public class GitRepository implements SCM {
 					e.printStackTrace();  // Logging or other error handling
 				}
 			}
-			System.out.println("processDeveloperInfo выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
 
 			futures.clear();
-
-			startTime = System.currentTimeMillis();
 
 			ObjectId head = git.getRepository().resolve(Constants.HEAD);
 			String finalNodePath = nodePath;
@@ -853,9 +844,6 @@ public class GitRepository implements SCM {
 			Stream<Pair<String, Integer>> fileAndBlameHashes = fileHashes.parallel().map(it -> new Pair<>(it.getFirst(), dataBaseUtil.insertBlameFile(projectId, filePathMap.get(it.getFirst()), it.getSecond())));
 			Map<String, String> devs = dataBaseUtil.getDevelopersByProjectId(projectId);
 
-			System.out.println("getDevelopersByProjectId выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
-
-			startTime = System.currentTimeMillis();
 			for (Pair<String, Integer> filePair : fileAndBlameHashes.collect(Collectors.toSet())) {
 				Future<?> future = executorService.submit(() -> {
 					DataBaseUtil dataBaseUtil1 = new DataBaseUtil(dataBaseUtil.getUrl());
@@ -880,7 +868,6 @@ public class GitRepository implements SCM {
 					e.printStackTrace();  // Logging or other error handling
 				}
 			}
-			System.out.println("updateFileOwnerBasedOnBlame выполнился за " + (System.currentTimeMillis() - startTime) + " мс");
 			dataBaseUtil.developerUpdateByBlameInfo(projectId, developersMap);
 			executorService.shutdown();
 		}
