@@ -165,18 +165,17 @@ public class GitRepository implements SCM {
 	}
 
 	public SCMRepository getInfo() {
-		RevWalk rw = null;
 		try (Git git = openRepository()) {
 			ObjectId head = git.getRepository().resolve(Constants.HEAD);
 
-			rw = new RevWalk(git.getRepository());
+			RevWalk rw = new RevWalk(git.getRepository());
 			RevCommit root = rw.parseCommit(head);
 			rw.sort(RevSort.REVERSE);
 			rw.markStart(root);
 			RevCommit lastCommit = rw.next();
 			String origin = git.getRepository().getConfig().getString("remote", "origin", "url");
 
-			String repoName = GitRemoteRepository.repoNameFromURI(origin);
+			repoName = (origin != null)? GitRemoteRepository.repoNameFromURI(origin) : repoName;
 
 			return new SCMRepository(this, origin, repoName, path, head.getName(), lastCommit.getName());
 		} catch (Exception e) {
@@ -572,7 +571,7 @@ public class GitRepository implements SCM {
 			git.reset().setMode(ResetType.HARD).call();
 			git.checkout().setName(mainBranchName).call();
 			deleteMMBranch(git);
-			git.checkout().setCreateBranch(true).setName(BRANCH_MM).setStartPoint(hash).setForce(true).setOrphan(true).call();
+			git.checkout().setCreateBranch(true).setName(BRANCH_MM).setStartPoint(hash).setForced(true).setOrphan(true).call();
 
 		} catch (Exception e) {
 			throw new RuntimeException(e);
@@ -600,7 +599,7 @@ public class GitRepository implements SCM {
 
 	public synchronized void reset() {
 		try (Git git = openRepository()) {
-			git.checkout().setName(mainBranchName).setForce(true).call();
+			git.checkout().setName(mainBranchName).setForced(true).call();
 			git.branchDelete().setBranchNames(BRANCH_MM).setForce(true).call();
 		} catch (Exception e) {
 			throw new RuntimeException(e);
@@ -906,8 +905,8 @@ public class GitRepository implements SCM {
 		}
 	}
 
-	private ObjectId getActualRefObjectId(Ref ref, Repository repo) {
-		final Ref repoPeeled = repo.peel(ref);
+	private ObjectId getActualRefObjectId(Ref ref, Repository repo) throws IOException {
+		final Ref repoPeeled = repo.getRefDatabase().peel(ref);
 		if (repoPeeled.getPeeledObjectId() != null) {
 			return repoPeeled.getPeeledObjectId();
 		}
