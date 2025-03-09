@@ -18,8 +18,6 @@ package org.repodriller.scm;
 
 import kotlin.Pair;
 import org.apache.commons.io.FileUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.api.*;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -40,6 +38,8 @@ import org.repodriller.filter.diff.DiffFilter;
 import org.repodriller.scm.entities.*;
 import org.repodriller.scm.exceptions.CheckoutException;
 import org.repodriller.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -73,7 +73,7 @@ public class GitRepository implements SCM {
 
 	private CollectConfiguration collectConfig;
 
-	private static Logger log = LogManager.getLogger(GitRepository.class);
+	private static Logger log = LoggerFactory.getLogger(GitRepository.class);
 
 	private static final ConcurrentHashMap<String, DeveloperInfo> developersMap = new ConcurrentHashMap<>();
 	private static final ConcurrentHashMap<String, Long> filePathMap = new ConcurrentHashMap<>();

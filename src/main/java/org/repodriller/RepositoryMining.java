@@ -18,8 +18,6 @@ package org.repodriller;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.repodriller.domain.ChangeSet;
 import org.repodriller.domain.Commit;
 import org.repodriller.filter.commit.CommitFilter;
@@ -31,6 +29,8 @@ import org.repodriller.scm.CollectConfiguration;
 import org.repodriller.scm.CommitVisitor;
 import org.repodriller.scm.SCMRepository;
 import org.repodriller.util.RDFileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,7 +56,7 @@ import java.util.concurrent.*;
 public class RepositoryMining {
 
 	private static final String DATE_FORMAT = "dd/MM/yyyy HH:mm:ss";
-	private static final Logger log = LogManager.getLogger(RepositoryMining.class);
+	private static final Logger log = LoggerFactory.getLogger(RepositoryMining.class);
 	private static final int THREADS_PER_CORE = 2;
 
 	private List<SCMRepository> repos;
@@ -373,7 +373,7 @@ public class RepositoryMining {
 					} catch (OutOfMemoryError e) {
 						String msg = "ChangeSet " + cs.getId() + " in " + repo.getLastDir() + " caused OOME:" + e + "\n\nGoodbye :/";
 						System.err.println(msg);
-						log.fatal(msg);
+						log.error(msg);
 						e.printStackTrace();
 						System.exit(1);
 					} catch(Throwable t) {
@@ -391,13 +391,13 @@ public class RepositoryMining {
 			try {
 				totalConsumed += f.get();
 			} catch (InterruptedException | ExecutionException e) {
-				log.error(e);
+				log.error(e.getMessage());
 			}
 		}
 
 		/* Make sure we didn't lose any ChangeSets. */
 		if (totalConsumed != rawCs.size()) {
-			log.fatal("Error, consumed " + totalConsumed + " ChangeSets but had " + rawCs.size() + " ChangeSets to work on");
+			log.error("Error, consumed " + totalConsumed + " ChangeSets but had " + rawCs.size() + " ChangeSets to work on");
 			System.exit(1);
 		}
 	}

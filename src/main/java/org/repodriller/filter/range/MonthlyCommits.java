@@ -1,7 +1,4 @@
 package org.repodriller.filter.range;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.repodriller.domain.ChangeSet;
 import org.repodriller.scm.SCM;
 
@@ -11,9 +8,6 @@ import java.util.List;
 public class MonthlyCommits implements CommitRange {
 
 	private final long monthsInMillis;
-
-	private static final Logger log = LogManager.getLogger(MonthlyCommits.class);
-
 
 	public MonthlyCommits(int months) {
 		monthsInMillis = 1000L * 60L * 60L * 24L * 30L * months;

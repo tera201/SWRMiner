@@ -1,8 +1,6 @@
 package model.console;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Ref;
 import org.repodriller.RepositoryMining;
@@ -14,6 +12,8 @@ import org.repodriller.scm.SCMRepository;
 import org.repodriller.scm.SingleGitRemoteRepositoryBuilder;
 import org.repodriller.scm.exceptions.CheckoutException;
 import org.repodriller.util.DataBaseUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,7 +25,7 @@ import static java.util.Comparator.comparingInt;
 
 public class BuildModel {
 
-  private static Logger log = LogManager.getLogger(GitRepository.class);
+  private static Logger log = LoggerFactory.getLogger(GitRepository.class);
 
   public static void main(String[] args) throws CheckoutException, GitAPIException, IOException {
 

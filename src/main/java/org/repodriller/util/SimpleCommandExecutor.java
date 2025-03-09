@@ -1,7 +1,7 @@
 package org.repodriller.util;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -23,7 +23,7 @@ public class SimpleCommandExecutor {
 	private List<EnvironmentVar> envVars = null;
 	private boolean inheritEnv = false;
 
-	private static Logger log = LogManager.getLogger(SimpleCommandExecutor.class);
+	private static Logger log = LoggerFactory.getLogger(SimpleCommandExecutor.class);
 
 	public SimpleCommandExecutor() {
 		envVars = new ArrayList<EnvironmentVar>();

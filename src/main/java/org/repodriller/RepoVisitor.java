@@ -1,13 +1,13 @@
 package org.repodriller;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.repodriller.domain.Commit;
 import org.repodriller.persistence.PersistenceMechanism;
 import org.repodriller.persistence.csv.CSVFileFormatException;
 import org.repodriller.scm.CommitVisitor;
 import org.repodriller.scm.SCMRepository;
 import org.repodriller.util.RDFileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -62,7 +62,7 @@ public class RepoVisitor {
 	/* Fixed-size resource pool, of SCMRepository clones. */
 	private BlockingQueue<SCMRepositoryClone> clonePool;
 
-	private static final Logger log = LogManager.getLogger(RepoVisitor.class);
+	private static final Logger log = LoggerFactory.getLogger(RepoVisitor.class);
 
 	public RepoVisitor() {
 		visitors = new LinkedList<>();
@@ -182,7 +182,7 @@ public class RepoVisitor {
 					log.debug("Thread " + Thread.currentThread().getId() + ": processing " + commit.getHash() + " with " + cvpm.cv.name() + " in " + cloneInfo);
 					cvpm.cv.process(scmRepoClone.repo, commit, cvpm.pm);
 				} catch (CSVFileFormatException e) {
-					log.fatal(e);
+					log.error(e.getMessage());
 					System.exit(-1);
 				} catch (Exception e) {
 					log.error("Error processing #" + commit.getHash() + " in " + cloneInfo +

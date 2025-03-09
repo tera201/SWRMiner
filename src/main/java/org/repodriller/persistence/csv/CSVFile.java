@@ -17,11 +17,11 @@
 package org.repodriller.persistence.csv;
 
 import org.apache.commons.lang3.StringEscapeUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.repodriller.RepoDrillerException;
 import org.repodriller.persistence.PersistenceMechanism;
 import org.repodriller.util.PathUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.FileOutputStream;
 import java.io.PrintStream;
@@ -42,7 +42,7 @@ public class CSVFile implements PersistenceMechanism {
 
 	private boolean isOpen = false;
 
-	private static final Logger log = LogManager.getLogger(CSVFile.class);
+	private static final Logger log = LoggerFactory.getLogger(CSVFile.class);
 
 	/* Various constructors. */
 
