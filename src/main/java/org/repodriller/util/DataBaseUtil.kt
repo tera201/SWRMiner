@@ -465,7 +465,7 @@ class DataBaseUtil(val url:String) {
 
     fun developerUpdateByBlameInfo(projectId: Int, developers: Map<String, DeveloperInfo>) {
         val sql = """
-        SELECT COUNT(b.lineCounts) AS lineCount, SUM(b.lineSize) AS lineSize, authors.email, string_agg(bf.filePathId, ', ') as filePaths
+        SELECT SUM(b.lineCounts) AS lineCount, SUM(b.lineSize) AS lineSize, authors.email, string_agg(bf.filePathId, ', ') as filePaths
         FROM Blames b
         JOIN BlameFiles bf ON b.blameFileId = bf.id
         JOIN Authors authors on authors.id = b.authorId
