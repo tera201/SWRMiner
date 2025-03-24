@@ -12,14 +12,16 @@ import org.repodriller.util.FileEntity;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Data
 public class DeveloperInfo {
     private long id;
     private final String name;
     private final String emailAddress;
-    private final List<RevCommit> commits;
+    private final Set<RevCommit> commits;
     private long changes;
     private long changesSize;
     public long actualLinesOwner;
@@ -41,7 +43,7 @@ public class DeveloperInfo {
         this.id = commitEntity.getAuthorId();
         this.name = commitEntity.getAuthorName();
         this.emailAddress = commitEntity.getAuthorEmail();
-        this.commits = new ArrayList<>();
+        this.commits = new HashSet<>();
         this.authorForFiles = new ArrayList<>();
         this.ownerForFiles = new ArrayList<>();
         this.commits.add(commit);
@@ -59,7 +61,7 @@ public class DeveloperInfo {
         this.id = id;
         this.name = name;
         this.emailAddress = emailAddress;
-        this.commits = new ArrayList<>();
+        this.commits = new HashSet<>();
         this.authorForFiles = new ArrayList<>();
         this.ownerForFiles = new ArrayList<>();
     }
@@ -69,15 +71,17 @@ public class DeveloperInfo {
     }
 
     public void updateByCommit(CommitEntity commitEntity, RevCommit commit) {
-            this.commits.add(commit);
-            this.changes += commitEntity.getFileEntity().getChanges();
-            this.changesSize += commitEntity.getFileEntity().getChangesSize();
-            this.linesAdded += commitEntity.getFileEntity().getLinesAdded();
-            this.linesDeleted += commitEntity.getFileEntity().getLinesDeleted();
-            this.linesModified += commitEntity.getFileEntity().getLinesModified();
-            this.fileAdded += commitEntity.getFileEntity().getFileAdded();
-            this.fileDeleted += commitEntity.getFileEntity().getFileDeleted();
-            this.fileModified += commitEntity.getFileEntity().getFileModified();
+            if (!this.commits.contains(commit)) {
+                this.commits.add(commit);
+                this.changes += commitEntity.getFileEntity().getChanges();
+                this.changesSize += commitEntity.getFileEntity().getChangesSize();
+                this.linesAdded += commitEntity.getFileEntity().getLinesAdded();
+                this.linesDeleted += commitEntity.getFileEntity().getLinesDeleted();
+                this.linesModified += commitEntity.getFileEntity().getLinesModified();
+                this.fileAdded += commitEntity.getFileEntity().getFileAdded();
+                this.fileDeleted += commitEntity.getFileEntity().getFileDeleted();
+                this.fileModified += commitEntity.getFileEntity().getFileModified();
+            }
     }
 
     public void addAuthoredFile(String filePath) {
