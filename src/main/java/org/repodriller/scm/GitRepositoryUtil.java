@@ -38,7 +38,7 @@ public class GitRepositoryUtil {
         }
     }
 
-    public static Map<String, FileEntity> getCommitsFiles(RevCommit commit, Git git, DeveloperInfo dev) throws IOException {
+    public static Map<String, FileEntity> getCommitsFiles(RevCommit commit, Git git) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (DiffFormatter diffFormatter = new DiffFormatter(out)) {
             RevCommit parent = (commit.getParentCount() > 0) ? commit.getParent(0) : null;
@@ -48,9 +48,8 @@ public class GitRepositoryUtil {
             List<DiffEntry> diffs = diffFormatter.scan(parent, commit);
             Map<String, FileEntity> paths = new HashMap<>();
 
-            int fileAdded = 0, fileDeleted = 0,fileModified = 0, linesAdded = 0, linesDeleted = 0, linesModified = 0, changes  = 0;
-
             for (DiffEntry diff : diffs) {
+                int fileAdded = 0, fileDeleted = 0,fileModified = 0, linesAdded = 0, linesDeleted = 0, linesModified = 0, changes  = 0;
                 switch (diff.getChangeType()) {
                     case ADD -> fileAdded++;
                     case DELETE -> fileDeleted++;
@@ -77,7 +76,6 @@ public class GitRepositoryUtil {
                 }
                 paths.putIfAbsent(diff.getNewPath(), new FileEntity(0, 0, 0, 0, 0, 0, 0, 0));
                 paths.get(diff.getNewPath()).plus(fileAdded, fileDeleted, fileModified, linesAdded, linesDeleted, linesModified, changes, out.size());
-                dev.processFileEntity(paths.get(diff.getNewPath()));
             }
             return paths;
         }

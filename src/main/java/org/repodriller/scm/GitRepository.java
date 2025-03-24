@@ -748,6 +748,7 @@ public class GitRepository implements SCM {
 	}
 
 	public void dbPrepared() {
+		developersMap.clear();
 		ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 		List<Future<?>> futures = new ArrayList<>();
 		try (Git git = openRepository()) {
@@ -770,9 +771,7 @@ public class GitRepository implements SCM {
 							Long id = dataBaseUtil.getAuthorId(projectId, e);
 							return id != null ? id : dataBaseUtil1.insertAuthor(projectId, author.getName(), e);
 						});
-						DeveloperInfo dev = developersMap.computeIfAbsent(author.getEmailAddress(), k -> new DeveloperInfo(author.getName(), k, authorId));
-						dev.addCommit(commit);
-						Map<String, org.repodriller.util.FileEntity> paths = GitRepositoryUtil.getCommitsFiles(commit, git, dev);
+						Map<String, org.repodriller.util.FileEntity> paths = GitRepositoryUtil.getCommitsFiles(commit, git);
 						paths.keySet().forEach(it -> filePathMap.computeIfAbsent(it, k -> {
 							Long id = dataBaseUtil.getFilePathId(projectId, k);
 							return id != null ? id : dataBaseUtil1.insertFilePath(projectId, k);
@@ -839,14 +838,14 @@ public class GitRepository implements SCM {
 			String finalNodePath = nodePath;
 			Stream<String> fileStream = files().stream().parallel().filter(it -> ((finalNodePath == null || it.getFile().getPath().startsWith(finalNodePath)) && !it.getFile().getPath().endsWith(".DS_Store")))
 					.map(it -> it.getFile().getPath().substring(path.length() + 1).replace("\\", "/")).filter(filePathMap.keySet()::contains);
-			Stream<Pair<String, String>> fileHashes = fileStream.parallel().map(it -> new Pair<>(it, head.getName())).filter(it -> dataBaseUtil.getBlameFileId(projectId, filePathMap.get(it.getFirst()), it.getSecond()) == null);
-			Stream<Pair<String, Integer>> fileAndBlameHashes = fileHashes.parallel().map(it -> new Pair<>(it.getFirst(), dataBaseUtil.insertBlameFile(projectId, filePathMap.get(it.getFirst()), it.getSecond())));
+			Stream<Pair<String, String>> fileHashes = fileStream.map(it -> new Pair<>(it, head.getName())).filter(it -> dataBaseUtil.getBlameFileId(projectId, filePathMap.get(it.getFirst()), it.getSecond()) == null);
+			Stream<Pair<String, Integer>> fileAndBlameHashes = fileHashes.map(it -> new Pair<>(it.getFirst(), dataBaseUtil.insertBlameFile(projectId, filePathMap.get(it.getFirst()), it.getSecond())));
 			Map<String, String> devs = dataBaseUtil.getDevelopersByProjectId(projectId);
 
 			for (Pair<String, Integer> filePair : fileAndBlameHashes.collect(Collectors.toSet())) {
 				Future<?> future = executorService.submit(() -> {
 					DataBaseUtil dataBaseUtil1 = new DataBaseUtil(dataBaseUtil.getUrl());
-                    BlameResult blameResult = null;
+                    BlameResult blameResult;
                     try {
                         blameResult = git.blame().setFilePath(filePair.getFirst()).setStartCommit(head).call();
                     } catch (GitAPIException e) {
